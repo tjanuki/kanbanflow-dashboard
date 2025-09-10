@@ -7,6 +7,7 @@ use Filament\Widgets\ChartWidget;
 
 class TasksPieChart extends ChartWidget
 {
+    protected static ?int $sort = 7;
     protected static ?string $heading = 'Project Task Summary';
 
     protected static ?string $maxHeight = '260px';

@@ -9,6 +9,7 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class WeeklySpentOverview extends BaseWidget
 {
+    protected static ?int $sort = 1;
     protected function getStats(): array
     {
         // estimate - spent

@@ -9,6 +9,7 @@ use Illuminate\Support\Collection;
 
 class ProjectRatioOverview extends BaseWidget
 {
+    protected static ?int $sort = 2;
     protected function getStats(): array
     {
         $targetProjects = Project::where('is_default', true)->get();

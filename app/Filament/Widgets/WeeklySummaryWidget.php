@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class WeeklySummaryWidget extends BaseWidget
 {
-    protected static ?int $sort = 1;
+    protected static ?int $sort = 6;
 
     public function table(Table $table): Table
     {
@@ -25,7 +25,7 @@ class WeeklySummaryWidget extends BaseWidget
             ->query(
                 Estimate::query()
                     ->selectRaw("
-                        DATE(DATE_SUB(tasks.date, INTERVAL (DAYOFWEEK(tasks.date) - 2 + 7) % 7 DAY)) as week_start,
+                        DATE(tasks.date, 'weekday 0', '-6 days') as week_start,
                         SUM(tasks.total_seconds_spent) as total_seconds_spent,
                         SUM(estimates.estimated_seconds) as estimated_seconds
                     ")

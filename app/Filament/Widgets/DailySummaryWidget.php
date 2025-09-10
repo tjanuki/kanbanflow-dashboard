@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class DailySummaryWidget extends BaseWidget
 {
-    protected static ?int $sort = 0;
+    protected static ?int $sort = 4;
 
     public function table(Table $table): Table
     {

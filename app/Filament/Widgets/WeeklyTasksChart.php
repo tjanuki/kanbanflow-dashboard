@@ -7,6 +7,7 @@ use Filament\Widgets\ChartWidget;
 
 class WeeklyTasksChart extends ChartWidget
 {
+    protected static ?int $sort = 5;
     protected static ?string $heading = 'Weekly Task Summary';
 
     protected function getData(): array
@@ -18,10 +19,10 @@ class WeeklyTasksChart extends ChartWidget
             ->groupBy('estimates.date')
             ->orderBy('estimates.date');
 
-        // show monthly tasks summary by weekly
+        // show monthly tasks summary by weekly (SQLite compatible)
         $data = Estimate::query()
             ->selectRaw("
-                DATE(DATE_SUB(tasks.date, INTERVAL (DAYOFWEEK(tasks.date) - 2 + 7) % 7 DAY)) as week,
+                DATE(tasks.date, 'weekday 0', '-6 days') as week,
                 SUM(tasks.total_seconds_spent) as total_seconds_spent,
                 SUM(estimates.estimated_seconds) as estimated_seconds
             ")

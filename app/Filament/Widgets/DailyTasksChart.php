@@ -7,6 +7,7 @@ use Filament\Widgets\ChartWidget;
 
 class DailyTasksChart extends ChartWidget
 {
+    protected static ?int $sort = 3;
     protected static ?string $heading = 'Daily Task Summary';
 
     protected function getData(): array
