@@ -23,7 +23,7 @@ class MonthlyTasksChart extends ChartWidget
 
         // show monthly tasks summary by weekly
         $data = Estimate::query()
-            ->selectRaw("strftime('%Y-%m', tasks.date) as month, SUM(tasks.total_seconds_spent) as total_seconds_spent, SUM(estimates.estimated_seconds) as estimated_seconds")
+            ->selectRaw("DATE_FORMAT(tasks.date, '%Y-%m') as month, SUM(tasks.total_seconds_spent) as total_seconds_spent, SUM(estimates.estimated_seconds) as estimated_seconds")
             ->leftJoinSub($dailyEstimates, 'tasks', function ($join) {
                 $join->on('estimates.date', '=', 'tasks.date');
             })
