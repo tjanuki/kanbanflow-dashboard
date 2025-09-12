@@ -12,6 +12,18 @@ class Task extends Model
 {
     use HasFactory;
 
+    protected $fillable = [
+        'kanbanflow_task_id',
+        'date',
+        'name',
+        'description',
+        'color',
+        'column_id',
+        'total_seconds_spent',
+        'total_seconds_estimate',
+        'changed_properties',
+    ];
+
     public static function getForm(): array
     {
         return [
