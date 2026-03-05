@@ -14,26 +14,26 @@ echo "🔄 Deploying to production server..."
 ssh caws << 'EOF'
     cd /var/www/kanbanflow-dashboard
     echo "📥 Pulling latest changes..."
-    sudo -u www-data git pull origin main
+    git pull origin main
 
     echo "📦 Installing composer dependencies..."
-    sudo -u www-data composer install --no-dev --optimize-autoloader
+    composer install --no-dev --optimize-autoloader
 
     echo "🏗️ Building frontend assets..."
-    sudo -u www-data npm ci --production=false
-    sudo -u www-data npm run build
+    npm ci --production=false
+    npm run build
 
     echo "🔧 Running Laravel optimizations..."
-    sudo -u www-data php artisan config:cache
-    sudo -u www-data php artisan route:cache
-    sudo -u www-data php artisan view:cache
-    sudo -u www-data php artisan event:cache
+    php artisan config:cache
+    php artisan route:cache
+    php artisan view:cache
+    php artisan event:cache
 
     echo "🗃️ Running migrations..."
-    sudo -u www-data php artisan migrate --force
+    php artisan migrate --force
 
     echo "📂 Setting proper permissions..."
-    sudo chown -R www-data:www-data storage bootstrap/cache
+    sudo chown -R ubuntu:www-data storage bootstrap/cache
     sudo chmod -R 775 storage bootstrap/cache
 
     echo "🔄 Restarting services..."
