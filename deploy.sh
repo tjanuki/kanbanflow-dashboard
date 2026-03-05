@@ -37,7 +37,7 @@ ssh caws << 'EOF'
     sudo chmod -R 775 storage bootstrap/cache
 
     echo "🔄 Restarting services..."
-    sudo systemctl reload php8.3-fpm
+    sudo systemctl reload php8.5-fpm
     sudo systemctl reload nginx
 
     # Restart queue workers if supervisor is installed
