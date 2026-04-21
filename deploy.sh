@@ -23,6 +23,10 @@ ssh caws << 'EOF'
     npm ci --production=false
     npm run build
 
+    echo "🧹 Clearing stale caches..."
+    php artisan optimize:clear
+    php artisan filament:optimize-clear || true
+
     echo "🔧 Running Laravel optimizations..."
     php artisan config:cache
     php artisan route:cache
@@ -37,7 +41,7 @@ ssh caws << 'EOF'
     sudo chmod -R 775 storage bootstrap/cache
 
     echo "🔄 Restarting services..."
-    sudo systemctl reload php8.5-fpm
+    sudo systemctl restart php8.5-fpm
     sudo systemctl reload nginx
 
     # Restart queue workers if supervisor is installed
