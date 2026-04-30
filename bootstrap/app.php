@@ -15,5 +15,14 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->dontReport([
+            \Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException::class,
+        ]);
+
+        $exceptions->reportable(function (\TypeError $e) {
+            $file = $e->getFile();
+            if (str_contains($file, '/vendor/livewire/') || str_contains($file, '/vendor/filament/')) {
+                return false;
+            }
+        });
     })->create();
