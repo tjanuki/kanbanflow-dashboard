@@ -67,6 +67,22 @@ class Task extends Model
         return $this->hasMany(SubTask::class);
     }
 
+    public function timeEntries(): HasMany
+    {
+        return $this->hasMany(TimeEntry::class);
+    }
+
+    /**
+     * Sum the related time entries back into total_seconds_spent so the
+     * existing dashboard widgets keep working off a single number.
+     */
+    public function recalculateSecondsSpent(): void
+    {
+        $this->update([
+            'total_seconds_spent' => (int) $this->timeEntries()->sum('seconds'),
+        ]);
+    }
+
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class, 'color', 'color');

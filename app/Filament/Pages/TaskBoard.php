@@ -8,6 +8,7 @@ use App\Models\SubTask;
 use App\Models\Task;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\On;
 
 class TaskBoard extends Page
 {
@@ -42,6 +43,13 @@ class TaskBoard extends Page
             'taskForm.board_column_id' => ['required', 'integer', 'exists:columns,id'],
             'taskForm.description' => ['nullable', 'string'],
         ];
+    }
+
+    /** Re-render so time-spent badges reflect a just-stopped timer. */
+    #[On('pomodoro-updated')]
+    public function refreshBoard(): void
+    {
+        // The empty body is enough — Livewire re-renders on every action.
     }
 
     /**

@@ -91,18 +91,29 @@
                                 </div>
                             @endif
 
-                            {{-- Footer: project + time spent --}}
+                            {{-- Footer: project + time spent + start timer --}}
                             <div class="mt-2 flex items-center justify-between text-xs text-gray-500">
                                 <span class="flex items-center gap-1">
                                     <span class="inline-block h-2 w-2 rounded-full" style="background-color: {{ $t['dot'] }};"></span>
                                     {{ $task->project?->name ?? $task->color }}
                                 </span>
-                                @if ($task->total_seconds_spent > 0)
-                                    <span class="flex items-center gap-1">
-                                        <x-heroicon-m-clock class="h-3 w-3" />
-                                        {{ $fmt($task->total_seconds_spent) }}
-                                    </span>
-                                @endif
+                                <span class="flex items-center gap-2">
+                                    @if ($task->total_seconds_spent > 0)
+                                        <span class="flex items-center gap-1">
+                                            <x-heroicon-m-clock class="h-3 w-3" />
+                                            {{ $fmt($task->total_seconds_spent) }}
+                                        </span>
+                                    @endif
+                                    <button
+                                        type="button"
+                                        wire:click="$dispatch('start-pomodoro', { taskId: {{ $task->id }} })"
+                                        class="flex items-center gap-0.5 rounded px-1 py-0.5 text-gray-500 hover:bg-white/60 hover:text-primary-600"
+                                        title="Start Pomodoro"
+                                    >
+                                        <x-heroicon-m-play class="h-3.5 w-3.5" />
+                                        Start
+                                    </button>
+                                </span>
                             </div>
                         </div>
                     @endforeach
