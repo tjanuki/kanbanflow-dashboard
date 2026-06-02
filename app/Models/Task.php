@@ -19,9 +19,15 @@ class Task extends Model
         'description',
         'color',
         'column_id',
+        'board_column_id',
+        'position',
         'total_seconds_spent',
         'total_seconds_estimate',
         'changed_properties',
+    ];
+
+    protected $casts = [
+        'date' => 'date',
     ];
 
     public static function getForm(): array
@@ -64,6 +70,11 @@ class Task extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class, 'color', 'color');
+    }
+
+    public function column(): BelongsTo
+    {
+        return $this->belongsTo(Column::class, 'board_column_id');
     }
 
     public function scopeWithDefaultProjects($query)
