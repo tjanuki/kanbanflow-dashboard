@@ -1,41 +1,61 @@
 <x-filament-panels::page>
     @php
-        // KanbanFlow colour names -> background / accent tints.
+        // KanbanFlow colour names -> stronger full-tint background / accent / text.
         $palette = [
-            'white' => ['bg' => '#f3f4f6', 'dot' => '#9ca3af'],
-            'yellow' => ['bg' => '#fef9c3', 'dot' => '#eab308'],
-            'green' => ['bg' => '#dcfce7', 'dot' => '#22c55e'],
-            'blue' => ['bg' => '#dbeafe', 'dot' => '#3b82f6'],
-            'purple' => ['bg' => '#ede9fe', 'dot' => '#8b5cf6'],
-            'red' => ['bg' => '#fee2e2', 'dot' => '#ef4444'],
-            'orange' => ['bg' => '#ffedd5', 'dot' => '#f97316'],
-            'magenta' => ['bg' => '#fce7f3', 'dot' => '#ec4899'],
-            'cyan' => ['bg' => '#cffafe', 'dot' => '#06b6d4'],
-            'brown' => ['bg' => '#efebe9', 'dot' => '#8d6e63'],
+            'white' => ['bg' => '#e5e7eb', 'dot' => '#9ca3af', 'text' => '#1f2937'],
+            'yellow' => ['bg' => '#fdeaa8', 'dot' => '#f59e0b', 'text' => '#1f2937'],
+            'green' => ['bg' => '#bbe8c8', 'dot' => '#22c55e', 'text' => '#1f2937'],
+            'blue' => ['bg' => '#bfe3fb', 'dot' => '#3b9fd6', 'text' => '#1f2937'],
+            'purple' => ['bg' => '#ddd6fe', 'dot' => '#8b5cf6', 'text' => '#1f2937'],
+            'red' => ['bg' => '#fbcaca', 'dot' => '#ef4444', 'text' => '#1f2937'],
+            'orange' => ['bg' => '#fdd9b5', 'dot' => '#f97316', 'text' => '#1f2937'],
+            'magenta' => ['bg' => '#f9cfe4', 'dot' => '#ec4899', 'text' => '#1f2937'],
+            'cyan' => ['bg' => '#aeebf2', 'dot' => '#06b6d4', 'text' => '#1f2937'],
+            'brown' => ['bg' => '#e0d4cd', 'dot' => '#8d6e63', 'text' => '#1f2937'],
         ];
-        $tint = fn ($color) => $palette[$color] ?? ['bg' => '#f3f4f6', 'dot' => '#9ca3af'];
-        $fmt = function (int $s): string {
-            $h = intdiv($s, 3600);
-            $m = intdiv($s % 3600, 60);
-            return $h ? "{$h}h {$m}m" : "{$m}m";
-        };
+        $tint = fn ($color) => $palette[$color] ?? ['bg' => '#e5e7eb', 'dot' => '#9ca3af', 'text' => '#1f2937'];
+
+        $runningEntry = $this->getRunningEntry();
+        $runningTaskId = $runningEntry?->task_id;
+        $runningStartedAt = $runningEntry?->started_at?->toIso8601String();
     @endphp
 
-    <div class="flex gap-3 overflow-x-auto pb-4">
+    <div class="flex gap-px overflow-x-auto pb-4">
         @foreach ($this->getBoardColumns() as $column)
-            <div class="flex w-72 flex-shrink-0 flex-col rounded-xl bg-gray-100 dark:bg-gray-800/60">
+            @php $isDay = $column->type === 'day'; @endphp
+            <div @class([
+                'flex w-64 flex-shrink-0 flex-col',
+                'rounded-xl bg-gray-100 dark:bg-gray-800/60' => ! $isDay,
+                'border-l border-gray-200 dark:border-gray-700' => $isDay && ! $loop->first,
+            ])>
                 {{-- Column header --}}
-                <div class="flex items-center justify-between px-3 py-2">
+                <div @class([
+                    'sticky top-0 z-10 flex items-center justify-between px-3 py-2',
+                    'rounded-t-xl bg-gray-100 dark:bg-gray-800/60' => ! $isDay,
+                    'bg-white dark:bg-gray-900' => $isDay,
+                ])>
+                    <span class="w-6"></span>
                     <div class="flex items-center gap-2">
                         <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">{{ $column->name }}</span>
-                        <span class="rounded-full bg-gray-200 px-2 text-xs text-gray-500 dark:bg-gray-700 dark:text-gray-400">
-                            {{ $column->tasks->count() }}
-                        </span>
+                        @if ($column->wip_limit)
+                            @php $overLimit = $column->tasks->count() > $column->wip_limit; @endphp
+                            <span
+                                class="rounded-full px-2 text-xs font-medium"
+                                style="{{ $overLimit ? 'background-color:#fee2e2;color:#dc2626;' : 'background-color:#e5e7eb;color:#6b7280;' }}"
+                            >
+                                {{ $column->tasks->count() }} / {{ $column->wip_limit }}
+                            </span>
+                        @else
+                            <span class="rounded-full bg-gray-200 px-2 text-xs text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                                {{ $column->tasks->count() }}
+                            </span>
+                        @endif
                     </div>
                     <button
                         type="button"
                         wire:click="newTask({{ $column->id }})"
-                        class="flex h-6 w-6 items-center justify-center rounded-md text-gray-500 hover:bg-gray-200 hover:text-primary-600 dark:hover:bg-gray-700"
+                        class="flex h-6 w-6 items-center justify-center rounded-full shadow-sm transition hover:opacity-90"
+                        style="background-color: #22c55e; color: #ffffff;"
                         title="Add task"
                     >
                         <x-heroicon-m-plus class="h-4 w-4" />
@@ -45,87 +65,33 @@
                 {{-- Droppable task list --}}
                 <div
                     data-column-id="{{ $column->id }}"
-                    class="flex min-h-[60px] flex-col gap-2 px-2 pb-3"
+                    class="flex min-h-[60px] flex-col gap-1.5 px-2 pb-3 pt-1"
                 >
                     @foreach ($column->tasks as $task)
-                        @php $t = $tint($task->color); @endphp
-                        <div
-                            data-task-id="{{ $task->id }}"
-                            wire:key="task-{{ $task->id }}"
-                            class="group cursor-grab rounded-lg border-l-4 p-2 shadow-sm active:cursor-grabbing"
-                            style="background-color: {{ $t['bg'] }}; border-left-color: {{ $t['dot'] }};"
-                        >
-                            <div class="flex items-start justify-between gap-2">
-                                <button
-                                    type="button"
-                                    wire:click="editTask({{ $task->id }})"
-                                    class="flex-1 text-left text-sm font-medium text-gray-800"
-                                >
-                                    {{ $task->name }}
-                                </button>
-                                <button
-                                    type="button"
-                                    wire:click="deleteTask({{ $task->id }})"
-                                    wire:confirm="Delete this task?"
-                                    class="text-gray-400 opacity-0 transition group-hover:opacity-100 hover:text-red-600"
-                                    title="Delete task"
-                                >
-                                    <x-heroicon-m-trash class="h-4 w-4" />
-                                </button>
-                            </div>
-
-                            {{-- Subtasks --}}
-                            @if ($task->subTasks->isNotEmpty())
-                                <div class="mt-2 space-y-1">
-                                    @foreach ($task->subTasks as $subTask)
-                                        <label class="flex items-center gap-1.5 text-xs text-gray-600">
-                                            <input
-                                                type="checkbox"
-                                                @checked($subTask->finished)
-                                                wire:click="toggleSubtask({{ $subTask->id }})"
-                                                class="h-3 w-3 rounded border-gray-300 text-primary-600"
-                                            />
-                                            <span @class(['line-through opacity-60' => $subTask->finished])>{{ $subTask->name }}</span>
-                                        </label>
-                                    @endforeach
-                                </div>
-                            @endif
-
-                            {{-- Footer: project + time spent + start timer --}}
-                            <div class="mt-2 flex items-center justify-between text-xs text-gray-500">
-                                <span class="flex items-center gap-1">
-                                    <span class="inline-block h-2 w-2 rounded-full" style="background-color: {{ $t['dot'] }};"></span>
-                                    {{ $task->project?->name ?? $task->color }}
-                                </span>
-                                <span class="flex items-center gap-2">
-                                    @if ($task->total_seconds_spent > 0)
-                                        <span class="flex items-center gap-1">
-                                            <x-heroicon-m-clock class="h-3 w-3" />
-                                            {{ $fmt($task->total_seconds_spent) }}
-                                        </span>
-                                    @endif
-                                    <button
-                                        type="button"
-                                        wire:click="$dispatch('start-pomodoro', { taskId: {{ $task->id }} })"
-                                        class="flex items-center gap-0.5 rounded px-1 py-0.5 text-gray-500 hover:bg-white/60 hover:text-primary-600"
-                                        title="Start Pomodoro"
-                                    >
-                                        <x-heroicon-m-play class="h-3.5 w-3.5" />
-                                        Start
-                                    </button>
-                                </span>
-                            </div>
-                        </div>
+                        @include('filament.pages.partials.task-card', [
+                            'task' => $task,
+                            'tint' => $tint,
+                            'runningTaskId' => $runningTaskId,
+                            'runningStartedAt' => $runningStartedAt,
+                        ])
                     @endforeach
                 </div>
             </div>
         @endforeach
     </div>
 
-    {{-- Create / edit modal --}}
+    {{-- Read-only detail modal (sits above the edit form) --}}
+    @if ($this->getViewingTask())
+        @include('filament.pages.partials.task-detail-modal', [
+            'task' => $this->getViewingTask(),
+            'tint' => $tint,
+        ])
+    @endif
+
+    {{-- Create / edit form modal --}}
     @if ($showTaskModal)
         <div
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
             wire:click.self="closeTaskModal"
         >
             <div class="w-full max-w-md rounded-xl bg-white p-5 shadow-xl dark:bg-gray-900">

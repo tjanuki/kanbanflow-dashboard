@@ -14,7 +14,7 @@ class ColumnSeeder extends Seeder
     {
         $columns = [
             ['name' => 'Templates', 'type' => 'fixed'],
-            ['name' => 'Today', 'type' => 'fixed'],
+            ['name' => 'Today', 'type' => 'fixed', 'wip_limit' => 10],
             ['name' => 'Done', 'type' => 'fixed'],
             ['name' => 'Ideas', 'type' => 'fixed'],
             ['name' => 'Monday', 'type' => 'day'],
@@ -28,7 +28,11 @@ class ColumnSeeder extends Seeder
         foreach ($columns as $index => $column) {
             Column::updateOrCreate(
                 ['name' => $column['name']],
-                ['type' => $column['type'], 'position' => $index + 1],
+                [
+                    'type' => $column['type'],
+                    'position' => $index + 1,
+                    'wip_limit' => $column['wip_limit'] ?? null,
+                ],
             );
         }
     }

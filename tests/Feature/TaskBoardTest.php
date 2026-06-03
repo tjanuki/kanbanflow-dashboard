@@ -108,6 +108,70 @@ it('moves a task to another column and renumbers positions', function () {
         ->and($b->fresh()->position)->toBe(2);
 });
 
+it('opens and closes the read-only detail modal', function () {
+    $column = makeColumn('Today', 1);
+    $task = Task::create(['name' => 'Detail me', 'color' => 'blue', 'board_column_id' => $column->id, 'position' => 0, 'date' => today()]);
+
+    $component = Livewire::test(TaskBoard::class)
+        ->call('viewTask', $task->id)
+        ->assertSet('viewingTaskId', $task->id);
+
+    expect($component->instance()->getViewingTask()->id)->toBe($task->id);
+
+    $component->call('closeDetailModal')->assertSet('viewingTaskId', null);
+});
+
+it('adds a subtask from the detail modal', function () {
+    $column = makeColumn('Today', 1);
+    $task = Task::create(['name' => 'Has subs', 'color' => 'blue', 'board_column_id' => $column->id, 'position' => 0, 'date' => today()]);
+
+    Livewire::test(TaskBoard::class)
+        ->call('viewTask', $task->id)
+        ->set('newSubtask', 'New step')
+        ->call('addDetailSubtask')
+        ->assertSet('newSubtask', '');
+
+    expect(SubTask::where('task_id', $task->id)->where('name', 'New step')->exists())->toBeTrue();
+});
+
+it('moves the viewing task to another column via the rail, appended to the end', function () {
+    $source = makeColumn('Today', 1);
+    $dest = makeColumn('Monday', 5);
+    Task::create(['name' => 'Existing', 'color' => 'blue', 'board_column_id' => $dest->id, 'position' => 3, 'date' => today()]);
+    $task = Task::create(['name' => 'Mover', 'color' => 'blue', 'board_column_id' => $source->id, 'position' => 0, 'date' => today()]);
+
+    Livewire::test(TaskBoard::class)
+        ->call('viewTask', $task->id)
+        ->call('moveViewingTask', $dest->id);
+
+    $task->refresh();
+    expect($task->board_column_id)->toBe($dest->id)
+        ->and($task->position)->toBe(4);
+});
+
+it('switches from detail to the edit form', function () {
+    $column = makeColumn('Today', 1);
+    $task = Task::create(['name' => 'Editable', 'color' => 'blue', 'board_column_id' => $column->id, 'position' => 0, 'date' => today()]);
+
+    Livewire::test(TaskBoard::class)
+        ->call('viewTask', $task->id)
+        ->call('editFromDetail')
+        ->assertSet('viewingTaskId', null)
+        ->assertSet('editingTaskId', $task->id)
+        ->assertSet('showTaskModal', true);
+});
+
+it('exposes the running time entry for running-card styling', function () {
+    $column = makeColumn('Today', 1);
+    $task = Task::create(['name' => 'Running', 'color' => 'blue', 'board_column_id' => $column->id, 'position' => 0, 'date' => today()]);
+    \App\Models\TimeEntry::create(['task_id' => $task->id, 'type' => 'pomodoro', 'started_at' => now(), 'ended_at' => null, 'seconds' => 0]);
+
+    $entry = Livewire::test(TaskBoard::class)->instance()->getRunningEntry();
+
+    expect($entry)->not->toBeNull()
+        ->and($entry->task_id)->toBe($task->id);
+});
+
 it('toggles a subtask finished state', function () {
     $column = makeColumn('Today', 1);
     $task = Task::create(['name' => 'Task', 'color' => 'blue', 'board_column_id' => $column->id, 'position' => 0, 'date' => today()]);

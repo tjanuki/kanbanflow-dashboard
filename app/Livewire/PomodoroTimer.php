@@ -74,6 +74,9 @@ class PomodoroTimer extends Component
         $this->runningTaskName = $task->name;
         $this->runningStartedAt = $entry->started_at->toIso8601String();
         $this->showPanel = true;
+
+        // Surface the new running state to the top-bar pill and board badges.
+        $this->dispatch('pomodoro-updated');
     }
 
     public function stop(): void
@@ -100,6 +103,13 @@ class PomodoroTimer extends Component
     public function togglePanel(): void
     {
         $this->showPanel = ! $this->showPanel;
+    }
+
+    /** Toggled from the top-bar pill ({@see PomodoroPill}). */
+    #[On('toggle-pomodoro')]
+    public function toggleFromPill(): void
+    {
+        $this->togglePanel();
     }
 
     /** Today's entries, newest first, for the session log. */

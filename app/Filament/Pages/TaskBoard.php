@@ -27,6 +27,12 @@ class TaskBoard extends Page
 
     public ?int $editingTaskId = null;
 
+    /** Detail-view modal state (sits on top of the edit form). */
+    public ?int $viewingTaskId = null;
+
+    /** Inline "add subtask" field used by the detail modal. */
+    public string $newSubtask = '';
+
     public array $taskForm = [
         'name' => '',
         'color' => '',
@@ -71,6 +77,16 @@ class TaskBoard extends Page
         return Project::orderBy('name')->get();
     }
 
+    /**
+     * The currently running time entry (if any) so cards can render a running
+     * highlight and the live "+Xm" delta. Re-queried on every render, and the
+     * board re-renders on the `pomodoro-updated` event.
+     */
+    public function getRunningEntry(): ?\App\Models\TimeEntry
+    {
+        return \App\Models\TimeEntry::running()->latest('started_at')->first();
+    }
+
     public function getEditingSubtasks()
     {
         if (! $this->editingTaskId) {
@@ -78,6 +94,74 @@ class TaskBoard extends Page
         }
 
         return SubTask::where('task_id', $this->editingTaskId)->orderBy('id')->get();
+    }
+
+    /** The task shown in the read-only detail modal (with its relations). */
+    public function getViewingTask(): ?Task
+    {
+        if (! $this->viewingTaskId) {
+            return null;
+        }
+
+        return Task::with(['subTasks' => fn ($q) => $q->orderBy('id'), 'project', 'column'])
+            ->find($this->viewingTaskId);
+    }
+
+    /** Open the read-only detail modal for a card. */
+    public function viewTask(int $taskId): void
+    {
+        $this->viewingTaskId = $taskId;
+        $this->newSubtask = '';
+    }
+
+    public function closeDetailModal(): void
+    {
+        $this->viewingTaskId = null;
+        $this->newSubtask = '';
+    }
+
+    /** Add a subtask to the task currently shown in the detail modal. */
+    public function addDetailSubtask(): void
+    {
+        $name = trim($this->newSubtask);
+
+        if (! $this->viewingTaskId || $name === '') {
+            return;
+        }
+
+        SubTask::create([
+            'task_id' => $this->viewingTaskId,
+            'name' => $name,
+            'finished' => false,
+        ]);
+
+        $this->newSubtask = '';
+    }
+
+    /** Move the detail task to another column (appended to its end). */
+    public function moveViewingTask(int $columnId): void
+    {
+        if (! $this->viewingTaskId) {
+            return;
+        }
+
+        $position = (int) Task::where('board_column_id', $columnId)->max('position');
+
+        Task::whereKey($this->viewingTaskId)->update([
+            'board_column_id' => $columnId,
+            'position' => $position + 1,
+        ]);
+    }
+
+    /** Switch from the detail modal into the editable form. */
+    public function editFromDetail(): void
+    {
+        $taskId = $this->viewingTaskId;
+        $this->closeDetailModal();
+
+        if ($taskId) {
+            $this->editTask($taskId);
+        }
     }
 
     /**
@@ -163,6 +247,10 @@ class TaskBoard extends Page
 
         if ($this->editingTaskId === $taskId) {
             $this->closeTaskModal();
+        }
+
+        if ($this->viewingTaskId === $taskId) {
+            $this->closeDetailModal();
         }
     }
 

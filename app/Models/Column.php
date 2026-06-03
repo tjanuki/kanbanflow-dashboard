@@ -15,6 +15,7 @@ class Column extends Model
         'position',
         'type',
         'color',
+        'wip_limit',
     ];
 
     public function tasks(): HasMany

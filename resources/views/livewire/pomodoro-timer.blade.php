@@ -1,13 +1,5 @@
 @php
-    $fmtDuration = function (int $s): string {
-        $h = intdiv($s, 3600);
-        $m = intdiv($s % 3600, 60);
-        if ($h) {
-            return "{$h}h {$m}m";
-        }
-
-        return $m ? "{$m}m" : '0m';
-    };
+    use App\Support\Format;
 
     // Reusable Alpine countdown definition. `start` is an ISO string or null.
     $clock = fn (?string $start, int $work) => "{
@@ -33,97 +25,121 @@
 @endphp
 
 <div class="pointer-events-none fixed inset-0 z-[60]">
-    {{-- Floating launcher / live countdown --}}
-    <button
-        type="button"
-        wire:click="togglePanel"
-        @class([
-            'pointer-events-auto fixed bottom-5 right-5 flex items-center gap-2 rounded-full px-4 py-3 font-medium text-white shadow-lg transition',
-            'bg-primary-600 hover:bg-primary-500' => ! $runningEntryId,
-            'bg-red-600 hover:bg-red-500' => $runningEntryId,
-        ])
-        title="Pomodoro timer"
-    >
-        <x-heroicon-s-clock class="h-5 w-5" />
-        @if ($runningEntryId)
-            <span wire:key="clock-btn-{{ $runningEntryId }}" x-data="{{ $clock($runningStartedAt, $workSeconds) }}" class="font-mono text-sm tabular-nums">
-                <span x-text="label"></span>
-            </span>
-        @else
-            <span class="text-sm">Pomodoro</span>
-        @endif
-    </button>
+    {{-- The launcher now lives in the top bar (see PomodoroPill / USER_MENU_BEFORE). --}}
 
-    {{-- Slide-over --}}
+    {{-- Draggable popup --}}
     @if ($showPanel)
         <div
-            class="pointer-events-auto fixed inset-0 bg-black/30"
-            wire:click="togglePanel"
-        ></div>
-
-        <div class="pointer-events-auto fixed inset-y-0 right-0 flex w-full max-w-sm flex-col bg-white shadow-2xl dark:bg-gray-900">
-            {{-- Header --}}
-            <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800">
-                <h2 class="flex items-center gap-2 text-base font-semibold text-gray-900 dark:text-gray-100">
-                    <x-heroicon-s-clock class="h-5 w-5 text-primary-600" />
+            x-data="{
+                x: 24, y: 88, dragging: false, ox: 0, oy: 0,
+                down(e) { this.dragging = true; this.ox = e.clientX - this.x; this.oy = e.clientY - this.y; },
+                move(e) {
+                    if (! this.dragging) return;
+                    this.x = Math.max(0, Math.min(window.innerWidth - 288, e.clientX - this.ox));
+                    this.y = Math.max(0, Math.min(window.innerHeight - 120, e.clientY - this.oy));
+                },
+                up() { this.dragging = false; },
+            }"
+            @mousemove.window="move"
+            @mouseup.window="up"
+            :style="`left: ${x}px; top: ${y}px;`"
+            class="pointer-events-auto fixed flex w-72 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+        >
+            {{-- Drag handle / header --}}
+            <div
+                @mousedown="down"
+                :class="dragging ? 'cursor-grabbing' : 'cursor-grab'"
+                class="flex items-center justify-between bg-gray-50 px-4 py-2 dark:bg-gray-800"
+            >
+                <span class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    <span style="color: #ef4444;"><x-heroicon-s-clock class="h-4 w-4" /></span>
                     Pomodoro
-                </h2>
+                </span>
                 <button type="button" wire:click="togglePanel" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-                    <x-heroicon-m-x-mark class="h-5 w-5" />
+                    <x-heroicon-m-x-mark class="h-4 w-4" />
                 </button>
             </div>
 
-            {{-- TODAY summary --}}
-            <div class="flex items-center gap-4 border-b border-gray-200 px-5 py-3 text-sm dark:border-gray-800">
-                <span class="font-medium text-gray-900 dark:text-gray-100">TODAY</span>
-                <span class="text-gray-600 dark:text-gray-300">{{ $fmtDuration($this->todaySeconds) }}</span>
-                <span class="text-gray-400">·</span>
-                <span class="text-gray-600 dark:text-gray-300">{{ $this->todayPomodoros }} {{ \Illuminate\Support\Str::plural('Pomodoro', $this->todayPomodoros) }}</span>
-            </div>
-
-            {{-- Running timer --}}
-            <div class="border-b border-gray-200 px-5 py-6 text-center dark:border-gray-800">
+            {{-- Countdown --}}
+            <div class="px-4 py-4 text-center">
                 @if ($runningEntryId)
-                    <p class="mb-1 truncate text-sm text-gray-500 dark:text-gray-400">{{ $runningTaskName }}</p>
+                    <p class="text-[11px] font-medium uppercase tracking-wide text-gray-400">Time until break</p>
                     <div
                         wire:key="clock-panel-{{ $runningEntryId }}"
                         x-data="{{ $clock($runningStartedAt, $workSeconds) }}"
-                        class="font-mono text-5xl font-semibold tabular-nums text-gray-900 dark:text-gray-100"
+                        class="my-1 font-mono text-4xl font-bold tabular-nums text-gray-900 dark:text-gray-100"
                     >
                         <span x-text="label"></span>
                     </div>
                     <button
                         type="button"
                         wire:click="stop"
-                        class="mt-4 inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-sm font-medium text-white hover:bg-red-500"
+                        class="mt-1 inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium text-white transition hover:opacity-90"
+                        style="background-color: #dc2626; color: #ffffff;"
                     >
                         <x-heroicon-m-stop class="h-4 w-4" />
                         Stop
                     </button>
+
+                    {{-- Running-task pill --}}
+                    <div class="mt-3 flex items-center justify-center">
+                        <span class="inline-flex max-w-full items-center gap-1.5 truncate rounded-full px-3 py-1 text-xs font-medium" style="background-color: #fef2f2; color: #b91c1c;">
+                            <span class="h-1.5 w-1.5 rounded-full" style="background-color: #ef4444;"></span>
+                            <span class="truncate">{{ $runningTaskName }}</span>
+                        </span>
+                    </div>
                 @else
-                    <div class="font-mono text-5xl font-semibold tabular-nums text-gray-300 dark:text-gray-600">25:00</div>
-                    <p class="mt-3 text-sm text-gray-400">No timer running — press ▶ on a task to start.</p>
+                    <p class="text-[11px] font-medium uppercase tracking-wide text-gray-400">Time until break</p>
+                    <div class="my-1 font-mono text-4xl font-bold tabular-nums text-gray-300 dark:text-gray-600">25:00</div>
+                    <p class="mt-1 text-xs text-gray-400">Press ▶ on a task to start.</p>
                 @endif
             </div>
 
+            {{-- TODAY summary --}}
+            <div class="flex items-center justify-center gap-2 border-t border-gray-100 px-4 py-2 text-xs dark:border-gray-800">
+                <span class="font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Today</span>
+                <span class="text-gray-700 dark:text-gray-200">{{ Format::seconds($this->todaySeconds) }}</span>
+                <span class="text-gray-300">·</span>
+                <span class="text-gray-700 dark:text-gray-200">{{ $this->todayPomodoros }} {{ \Illuminate\Support\Str::plural('Pomodoro', $this->todayPomodoros) }}</span>
+            </div>
+
             {{-- Session log --}}
-            <div class="flex-1 overflow-y-auto px-5 py-4">
-                <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Session log</h3>
+            <div class="max-h-44 overflow-y-auto border-t border-gray-100 px-4 py-2 dark:border-gray-800">
                 @forelse ($this->todayEntries as $entry)
-                    <div class="flex items-center justify-between border-b border-gray-100 py-2 text-sm dark:border-gray-800">
-                        <span class="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">{{ $entry->task?->name ?? '—' }}</span>
-                        <span class="ml-3 whitespace-nowrap font-mono text-xs text-gray-500">
-                            {{ $entry->started_at->format('H:i') }} —
+                    <div class="flex items-center justify-between gap-2 py-1 text-xs">
+                        <span class="min-w-0 flex-1 truncate text-gray-600 dark:text-gray-300">{{ $entry->task?->name ?? '—' }}</span>
+                        <span class="whitespace-nowrap font-mono text-[11px] text-gray-400">
+                            {{ $entry->started_at->format('g:i A') }}
                             @if ($entry->ended_at)
-                                {{ $entry->ended_at->format('H:i') }}
+                                — {{ $entry->ended_at->format('g:i A') }}
                             @else
-                                <span class="text-red-500">pending</span>
+                                — <span style="color: #ef4444;">pending</span>
                             @endif
                         </span>
                     </div>
                 @empty
-                    <p class="py-4 text-center text-sm text-gray-400">No sessions yet today.</p>
+                    <p class="py-3 text-center text-xs text-gray-400">No sessions yet today.</p>
                 @endforelse
+            </div>
+
+            {{-- Footer toolbar (Stopwatch / Add time / Log / Settings — stubs for a later pass) --}}
+            <div class="flex items-center justify-around border-t border-gray-100 bg-gray-50 px-2 py-1.5 dark:border-gray-800 dark:bg-gray-800">
+                {{-- TODO: wire Stopwatch to a type=stopwatch time entry. --}}
+                <button type="button" class="rounded p-1.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700" title="Stopwatch (coming soon)">
+                    <x-heroicon-m-play-pause class="h-4 w-4" />
+                </button>
+                {{-- TODO: manual "Add time" entry. --}}
+                <button type="button" class="rounded p-1.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700" title="Add time (coming soon)">
+                    <x-heroicon-m-plus-circle class="h-4 w-4" />
+                </button>
+                {{-- TODO: full time log view. --}}
+                <button type="button" class="rounded p-1.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700" title="Log (coming soon)">
+                    <x-heroicon-m-list-bullet class="h-4 w-4" />
+                </button>
+                {{-- TODO: timer settings (work/break length). --}}
+                <button type="button" class="rounded p-1.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700" title="Settings (coming soon)">
+                    <x-heroicon-m-cog-6-tooth class="h-4 w-4" />
+                </button>
             </div>
         </div>
     @endif
