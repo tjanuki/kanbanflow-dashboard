@@ -112,12 +112,17 @@ class TaskBoard extends Page
     {
         $this->viewingTaskId = $taskId;
         $this->newSubtask = '';
+
+        // Let the Pomodoro panel offer "Select open task" for this card.
+        $this->dispatch('task-opened', taskId: $taskId, name: Task::find($taskId)?->name);
     }
 
     public function closeDetailModal(): void
     {
         $this->viewingTaskId = null;
         $this->newSubtask = '';
+
+        $this->dispatch('task-closed');
     }
 
     /** Add a subtask to the task currently shown in the detail modal. */

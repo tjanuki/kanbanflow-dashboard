@@ -26,6 +26,11 @@ class PomodoroTimer extends Component
     /** ISO-8601 start time handed to Alpine so the countdown resumes after a reload. */
     public ?string $runningStartedAt = null;
 
+    /** Task whose detail modal is currently open on the board (if any). */
+    public ?int $openTaskId = null;
+
+    public ?string $openTaskName = null;
+
     public function mount(): void
     {
         $this->loadRunningEntry();
@@ -98,6 +103,36 @@ class PomodoroTimer extends Component
         }
 
         $this->reset(['runningEntryId', 'runningTaskId', 'runningTaskName', 'runningStartedAt']);
+    }
+
+    /** Board tells us which task's detail modal just opened. */
+    #[On('task-opened')]
+    public function setOpenTask(int $taskId, ?string $name = null): void
+    {
+        $this->openTaskId = $taskId;
+        $this->openTaskName = $name;
+
+        // Surface the panel (with its "Select open task" link) when the open
+        // task differs from the one the timer is on.
+        if ($this->runningEntryId && $taskId !== $this->runningTaskId) {
+            $this->showPanel = true;
+        }
+    }
+
+    /** Board tells us the detail modal closed. */
+    #[On('task-closed')]
+    public function clearOpenTask(): void
+    {
+        $this->openTaskId = null;
+        $this->openTaskName = null;
+    }
+
+    /** Move the running timer onto the task whose modal is open. */
+    public function switchToOpenTask(): void
+    {
+        if ($this->openTaskId) {
+            $this->start($this->openTaskId);
+        }
     }
 
     public function togglePanel(): void

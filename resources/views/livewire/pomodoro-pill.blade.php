@@ -39,6 +39,7 @@
                 <span class="relative inline-flex h-2 w-2 rounded-full bg-white"></span>
             </span>
             <span class="font-mono tabular-nums" x-text="label"></span>
+            <x-heroicon-m-chevron-down class="h-3.5 w-3.5 opacity-80" />
         </button>
     @else
         {{-- Idle: clock icon button that opens the popup --}}

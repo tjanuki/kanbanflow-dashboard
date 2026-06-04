@@ -91,10 +91,14 @@
     {{-- Create / edit form modal --}}
     @if ($showTaskModal)
         <div
-            class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+            class="fixed inset-0 flex items-center justify-center p-4"
+            style="z-index: 65; background-color: rgba(0, 0, 0, 0.45);"
             wire:click.self="closeTaskModal"
         >
-            <div class="w-full max-w-md rounded-xl bg-white p-5 shadow-xl dark:bg-gray-900">
+            <div
+                class="w-full max-w-md bg-white p-5 dark:bg-gray-900"
+                style="border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);"
+            >
                 <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
                     {{ $editingTaskId ? 'Edit task' : 'New task' }}
                 </h2>

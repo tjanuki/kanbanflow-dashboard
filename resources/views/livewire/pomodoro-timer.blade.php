@@ -24,39 +24,23 @@
     }";
 @endphp
 
-<div class="pointer-events-none fixed inset-0 z-[60]">
+<div class="pointer-events-none fixed inset-0" style="z-index: 60;">
     {{-- The launcher now lives in the top bar (see PomodoroPill / USER_MENU_BEFORE). --}}
 
-    {{-- Draggable popup --}}
+    {{-- Panel anchored top-right, directly under the top-bar timer icon. --}}
     @if ($showPanel)
         <div
-            x-data="{
-                x: 24, y: 88, dragging: false, ox: 0, oy: 0,
-                down(e) { this.dragging = true; this.ox = e.clientX - this.x; this.oy = e.clientY - this.y; },
-                move(e) {
-                    if (! this.dragging) return;
-                    this.x = Math.max(0, Math.min(window.innerWidth - 288, e.clientX - this.ox));
-                    this.y = Math.max(0, Math.min(window.innerHeight - 120, e.clientY - this.oy));
-                },
-                up() { this.dragging = false; },
-            }"
-            @mousemove.window="move"
-            @mouseup.window="up"
-            :style="`left: ${x}px; top: ${y}px;`"
             class="pointer-events-auto fixed flex w-72 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+            style="top: 4rem; right: 0.75rem; z-index: 60;"
         >
-            {{-- Drag handle / header --}}
-            <div
-                @mousedown="down"
-                :class="dragging ? 'cursor-grabbing' : 'cursor-grab'"
-                class="flex items-center justify-between bg-gray-50 px-4 py-2 dark:bg-gray-800"
-            >
+            {{-- Header --}}
+            <div class="flex items-center justify-between bg-gray-50 px-4 py-2 dark:bg-gray-800">
                 <span class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                     <span style="color: #ef4444;"><x-heroicon-s-clock class="h-4 w-4" /></span>
                     Pomodoro
                 </span>
-                <button type="button" wire:click="togglePanel" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-                    <x-heroicon-m-x-mark class="h-4 w-4" />
+                <button type="button" wire:click="togglePanel" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" title="Collapse">
+                    <x-heroicon-m-chevron-up class="h-4 w-4" />
                 </button>
             </div>
 
@@ -88,6 +72,20 @@
                             <span class="truncate">{{ $runningTaskName }}</span>
                         </span>
                     </div>
+
+                    {{-- Switch the timer onto whichever task's detail modal is open. --}}
+                    @if ($openTaskId && $openTaskId !== $runningTaskId)
+                        <div class="mt-1.5 text-center">
+                            <button
+                                type="button"
+                                wire:click="switchToOpenTask"
+                                class="text-xs font-medium text-blue-600 underline underline-offset-2 hover:text-blue-700 dark:text-blue-400"
+                                title="{{ $openTaskName }}"
+                            >
+                                Select open task
+                            </button>
+                        </div>
+                    @endif
                 @else
                     <p class="text-[11px] font-medium uppercase tracking-wide text-gray-400">Time until break</p>
                     <div class="my-1 font-mono text-4xl font-bold tabular-nums text-gray-300 dark:text-gray-600">25:00</div>

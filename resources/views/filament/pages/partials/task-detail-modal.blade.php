@@ -12,11 +12,15 @@
 @endphp
 
 <div
-    class="fixed inset-0 z-[55] flex items-center justify-center bg-black/40 p-4"
+    class="fixed inset-0 flex items-center justify-center p-4"
+    style="z-index: 55; background-color: rgba(0, 0, 0, 0.45);"
     wire:click.self="closeDetailModal"
     wire:key="detail-{{ $task->id }}"
 >
-    <div class="flex w-full max-w-2xl overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-gray-900">
+    <div
+        class="flex w-full max-w-2xl overflow-hidden bg-white dark:bg-gray-900"
+        style="border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);"
+    >
         {{-- Main content --}}
         <div class="min-w-0 flex-1 p-5">
             {{-- Color band + title --}}
