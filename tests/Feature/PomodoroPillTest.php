@@ -46,7 +46,24 @@ it('shows nothing when no timer is running', function () {
 
     Livewire::test(PomodoroPill::class)
         ->assertSet('runningEntryId', null)
-        ->assertDontSee('countdown');
+        ->assertDontSee('pomodoro-pill-running');
+});
+
+it('renders the dark running control without the old red pill markup', function () {
+    $task = pillTask();
+    TimeEntry::create([
+        'task_id' => $task->id,
+        'type' => 'pomodoro',
+        'started_at' => now()->subMinutes(2),
+        'ended_at' => null,
+        'seconds' => 0,
+    ]);
+
+    Livewire::test(PomodoroPill::class)
+        ->assertSee('pomodoro-pill-running')
+        ->assertSee('#484848')
+        ->assertDontSee('animate-ping')
+        ->assertDontSee('rounded-full px-3');
 });
 
 it('dispatches toggle-pomodoro when clicked', function () {

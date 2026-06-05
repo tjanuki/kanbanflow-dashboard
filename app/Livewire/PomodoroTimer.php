@@ -112,9 +112,9 @@ class PomodoroTimer extends Component
         $this->openTaskId = $taskId;
         $this->openTaskName = $name;
 
-        // Surface the panel (with its "Select open task" link) when the open
-        // task differs from the one the timer is on.
-        if ($this->runningEntryId && $taskId !== $this->runningTaskId) {
+        // Keep the timer visible beside the task modal whenever one is running.
+        // When the open task differs, the panel also surfaces its "Change task" link.
+        if ($this->runningEntryId) {
             $this->showPanel = true;
         }
     }

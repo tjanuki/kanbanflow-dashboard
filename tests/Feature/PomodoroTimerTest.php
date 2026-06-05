@@ -103,6 +103,39 @@ it('resumes a running entry on mount so a reload keeps the timer', function () {
         ->assertSet('runningTaskName', 'Focus work');
 });
 
+it('opens the panel and shows Change task when a different task modal opens', function () {
+    $task = pomodoroTask();
+    $other = Task::create([
+        'name' => 'Other task',
+        'color' => 'red',
+        'board_column_id' => $task->board_column_id,
+        'position' => 1,
+        'date' => today(),
+        'total_seconds_spent' => 0,
+    ]);
+
+    Livewire::test(PomodoroTimer::class)
+        ->call('start', $task->id)
+        ->call('togglePanel') // collapse first to prove setOpenTask re-opens it
+        ->assertSet('showPanel', false)
+        ->call('setOpenTask', $other->id, $other->name)
+        ->assertSet('showPanel', true)
+        ->assertSee('Change task')
+        ->assertDontSee('Select open task');
+});
+
+it('keeps the panel open even when the open task matches the running task', function () {
+    $task = pomodoroTask();
+
+    Livewire::test(PomodoroTimer::class)
+        ->call('start', $task->id)
+        ->call('togglePanel')
+        ->assertSet('showPanel', false)
+        ->call('setOpenTask', $task->id, $task->name)
+        ->assertSet('showPanel', true)
+        ->assertDontSee('Change task');
+});
+
 it('reports today total seconds and completed pomodoro count', function () {
     $task = pomodoroTask();
 

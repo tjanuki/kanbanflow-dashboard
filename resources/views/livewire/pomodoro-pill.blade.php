@@ -24,29 +24,28 @@
 
 <div class="flex items-center">
     @if ($runningEntryId)
-        {{-- Running: red countdown pill --}}
+        {{-- Running: dark KanbanFlow-style toolbar control --}}
         <button
             type="button"
             wire:click="toggle"
             wire:key="pill-{{ $runningEntryId }}"
+            data-testid="pomodoro-pill-running"
             x-data="{{ $clock($runningStartedAt, $workSeconds) }}"
-            class="mr-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium shadow-sm transition hover:opacity-90"
-            style="background-color: #dc2626; color: #ffffff;"
+            class="mr-2 inline-flex items-center gap-1.5 transition hover:opacity-90"
+            style="height: 34px; padding: 0 8px; border-radius: 3px; background-color: #484848; color: #ffffff;"
             title="Pomodoro running — click to open"
         >
-            <span class="relative flex h-2 w-2">
-                <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75"></span>
-                <span class="relative inline-flex h-2 w-2 rounded-full bg-white"></span>
-            </span>
-            <span class="font-mono tabular-nums" x-text="label"></span>
-            <x-heroicon-m-chevron-down class="h-3.5 w-3.5 opacity-80" />
+            {{-- Solid red square = "stop indicator" --}}
+            <span style="display: inline-block; width: 20px; height: 20px; border-radius: 2px; background-color: #f15a5a;"></span>
+            <span class="font-mono tabular-nums" style="font-size: 20px; font-weight: 700; line-height: 1;" x-text="label"></span>
+            <x-heroicon-m-chevron-down class="h-4 w-4" style="color: #cfcfcf;" />
         </button>
     @else
         {{-- Idle: clock icon button that opens the popup --}}
         <button
             type="button"
             wire:click="toggle"
-            class="mr-2 inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+            class="mr-2 inline-flex h-9 w-9 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
             title="Pomodoro timer"
         >
             <x-heroicon-o-clock class="h-6 w-6" />
