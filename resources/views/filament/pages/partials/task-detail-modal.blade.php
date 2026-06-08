@@ -17,9 +17,11 @@
     wire:click.self="closeDetailModal"
     wire:key="detail-{{ $task->id }}"
 >
+    {{-- Nudged +140px right of centre so the docked Pomodoro panel (see
+         pomodoro-timer) sits to its left as a centred side-by-side group. --}}
     <div
         class="flex w-full max-w-2xl overflow-hidden bg-white dark:bg-gray-900"
-        style="border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);"
+        style="border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); transform: translateX(140px);"
     >
         {{-- Main content --}}
         <div class="min-w-0 flex-1 p-5">

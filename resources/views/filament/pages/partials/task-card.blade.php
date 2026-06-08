@@ -16,11 +16,11 @@
     data-task-id="{{ $task->id }}"
     wire:key="task-{{ $task->id }}"
     @class([
-        'group relative cursor-grab rounded-md px-2.5 py-2 text-[13px] shadow-sm active:cursor-grabbing',
+        'group relative cursor-grab rounded-md text-[13px] shadow-sm active:cursor-grabbing',
         'border border-transparent' => ! $isRunning,
         'border-2 border-dashed' => $isRunning,
     ])
-    style="background-color: {{ $t['bg'] }}; color: {{ $t['text'] }};@if ($isRunning) border-color: {{ $t['dot'] }};@endif"
+    style="padding: 12px 14px; background-color: {{ $t['bg'] }}; color: {{ $t['text'] }};@if ($isRunning) border-color: {{ $t['dot'] }};@endif"
 >
     {{-- Running member badge --}}
     @if ($isRunning)

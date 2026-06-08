@@ -27,12 +27,24 @@
 <div class="pointer-events-none fixed inset-0" style="z-index: 80;">
     {{-- The launcher now lives in the top bar (see PomodoroPill / USER_MENU_BEFORE). --}}
 
-    {{-- Panel anchored top-right, directly under the top-bar timer control. --}}
+    {{--
+        Panel position: when a task's detail modal is open it docks just left
+        of the centred modal (clamped so it never slides off-screen); otherwise
+        it anchors top-right, directly under the top-bar timer control.
+    --}}
+    @php
+        // Docked beside the modal: the detail modal is nudged +140px right of
+        // centre (see task-detail-modal), so the panel's left edge lands at
+        // 50% + 140 − 613 = 50% − 473px, leaving a 16px gutter to the modal.
+        $panelPosition = $openTaskId
+            ? 'top: 50%; left: max(0.5rem, calc(50% - 473px)); transform: translateY(-50%);'
+            : 'top: 3.5rem; right: 0.75rem;';
+    @endphp
     @if ($showPanel)
         <div
             data-testid="pomodoro-panel"
             class="pointer-events-auto fixed flex flex-col overflow-hidden"
-            style="top: 3.5rem; right: 0.75rem; z-index: 80; width: 261px; border-radius: 4px; background-color: #3e3e3e; box-shadow: 0 10px 30px rgba(0,0,0,0.45); color: #ffffff;"
+            style="{{ $panelPosition }} z-index: 80; width: 261px; border-radius: 4px; background-color: #3e3e3e; box-shadow: 0 10px 30px rgba(0,0,0,0.45); color: #ffffff;"
         >
             {{-- Header --}}
             <div class="flex items-center justify-between" style="padding: 12px 14px; background-color: #3e3e3e;">

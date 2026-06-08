@@ -112,11 +112,10 @@ class PomodoroTimer extends Component
         $this->openTaskId = $taskId;
         $this->openTaskName = $name;
 
-        // Keep the timer visible beside the task modal whenever one is running.
-        // When the open task differs, the panel also surfaces its "Change task" link.
-        if ($this->runningEntryId) {
-            $this->showPanel = true;
-        }
+        // Surface the timer dialog beside the task modal whenever a task is
+        // opened. When the open task differs from the running one, the panel
+        // also surfaces its "Change task" link.
+        $this->showPanel = true;
     }
 
     /** Board tells us the detail modal closed. */
@@ -125,6 +124,12 @@ class PomodoroTimer extends Component
     {
         $this->openTaskId = null;
         $this->openTaskName = null;
+
+        // The panel was surfaced to accompany the modal — collapse it again
+        // unless a timer is still running (then it returns to the top bar).
+        if (! $this->runningEntryId) {
+            $this->showPanel = false;
+        }
     }
 
     /** Move the running timer onto the task whose modal is open. */
