@@ -2,6 +2,7 @@
 
 use App\Livewire\PomodoroTimer;
 use App\Models\Column;
+use App\Models\StopReason;
 use App\Models\Task;
 use App\Models\TimeEntry;
 use App\Models\User;
@@ -63,6 +64,118 @@ it('stops the entry, computes seconds and updates total_seconds_spent', function
     expect($entry->ended_at)->not->toBeNull()
         ->and($entry->seconds)->toBe(1500)
         ->and($task->fresh()->total_seconds_spent)->toBe(1500);
+});
+
+it('discards a session stopped within 15 seconds without asking why', function () {
+    $task = pomodoroTask();
+
+    Carbon::setTestNow('2026-06-02 10:00:00');
+    $component = Livewire::test(PomodoroTimer::class)->call('start', $task->id);
+
+    // Only 10 seconds in — an accidental tap.
+    Carbon::setTestNow('2026-06-02 10:00:10');
+    $component->call('stop')
+        ->assertSet('runningEntryId', null)
+        ->assertSet('showStopReasons', false);
+
+    expect(TimeEntry::count())->toBe(0)
+        ->and($task->fresh()->total_seconds_spent)->toBe(0);
+});
+
+it('asks why when a pomodoro is stopped early, leaving the timer running', function () {
+    $task = pomodoroTask();
+
+    Carbon::setTestNow('2026-06-02 10:00:00');
+    $component = Livewire::test(PomodoroTimer::class)->call('start', $task->id);
+
+    // 5 minutes in — interrupted before the break.
+    Carbon::setTestNow('2026-06-02 10:05:00');
+    $component->call('stop')
+        ->assertSet('showStopReasons', true)
+        ->assertSet('runningEntryId', fn ($v) => $v !== null);
+
+    // The entry is still running until a reason is chosen.
+    expect(TimeEntry::sole()->ended_at)->toBeNull();
+});
+
+it('does not ask why when a pomodoro runs its full interval', function () {
+    $task = pomodoroTask();
+
+    Carbon::setTestNow('2026-06-02 10:00:00');
+    $component = Livewire::test(PomodoroTimer::class)->call('start', $task->id);
+
+    Carbon::setTestNow('2026-06-02 10:25:00');
+    $component->call('stop')->assertSet('showStopReasons', false);
+
+    expect(TimeEntry::sole()->ended_at)->not->toBeNull();
+});
+
+it('logs the chosen reason and the time captured when stop was pressed', function () {
+    $task = pomodoroTask();
+
+    Carbon::setTestNow('2026-06-02 10:00:00');
+    $component = Livewire::test(PomodoroTimer::class)->call('start', $task->id);
+
+    Carbon::setTestNow('2026-06-02 10:05:00');
+    $component->call('stop');
+
+    // The user takes a few more seconds to pick — should not inflate the log.
+    Carbon::setTestNow('2026-06-02 10:05:08');
+    $component->call('chooseReason', 'Phone call')
+        ->assertSet('showStopReasons', false)
+        ->assertSet('runningEntryId', null);
+
+    $entry = TimeEntry::sole();
+
+    expect($entry->reason)->toBe('Phone call')
+        ->and($entry->seconds)->toBe(300)
+        ->and($task->fresh()->total_seconds_spent)->toBe(300);
+});
+
+it('discards the session when the reason is Wrong click', function () {
+    $task = pomodoroTask();
+
+    Carbon::setTestNow('2026-06-02 10:00:00');
+    $component = Livewire::test(PomodoroTimer::class)->call('start', $task->id);
+
+    Carbon::setTestNow('2026-06-02 10:05:00');
+    $component->call('stop')->call('chooseReason', 'Wrong click')
+        ->assertSet('showStopReasons', false)
+        ->assertSet('runningEntryId', null);
+
+    expect(TimeEntry::count())->toBe(0)
+        ->and($task->fresh()->total_seconds_spent)->toBe(0);
+});
+
+it('saves a custom reason and uses it to stop the timer', function () {
+    $task = pomodoroTask();
+
+    Carbon::setTestNow('2026-06-02 10:00:00');
+    $component = Livewire::test(PomodoroTimer::class)->call('start', $task->id);
+
+    Carbon::setTestNow('2026-06-02 10:05:00');
+    $component->call('stop')
+        ->set('newReason', 'Lunch break')
+        ->call('addReason')
+        ->assertSet('showStopReasons', false);
+
+    expect(StopReason::where('label', 'Lunch break')->exists())->toBeTrue()
+        ->and(TimeEntry::sole()->reason)->toBe('Lunch break');
+});
+
+it('keeps the timer running when the reason picker is cancelled', function () {
+    $task = pomodoroTask();
+
+    Carbon::setTestNow('2026-06-02 10:00:00');
+    $component = Livewire::test(PomodoroTimer::class)->call('start', $task->id);
+
+    Carbon::setTestNow('2026-06-02 10:05:00');
+    $component->call('stop')
+        ->call('cancelStopReasons')
+        ->assertSet('showStopReasons', false)
+        ->assertSet('runningEntryId', fn ($v) => $v !== null);
+
+    expect(TimeEntry::sole()->ended_at)->toBeNull();
 });
 
 it('stops the previous timer when a new one starts', function () {

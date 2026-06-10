@@ -80,6 +80,69 @@
             class="pointer-events-auto fixed flex flex-col overflow-hidden"
             style="{{ $panelPosition }} z-index: 80; width: 261px; border-radius: 4px; background-color: #3e3e3e; box-shadow: 0 10px 30px rgba(0,0,0,0.45); color: #ffffff;"
         >
+        @if ($showStopReasons)
+            {{-- "Why did you stop?" picker — shown when a session is stopped early. --}}
+            <div data-testid="pomodoro-reason-picker">
+                {{-- Header with a back arrow that cancels (timer keeps running). --}}
+                <div class="flex items-center gap-2" style="padding: 12px 14px;">
+                    <button type="button" wire:click="cancelStopReasons" title="Back" style="color: #cfcfcf;" class="hover:text-white">
+                        <x-heroicon-m-chevron-left class="h-5 w-5" />
+                    </button>
+                    <span style="font-size: 15px; font-weight: 700; color: #ffffff;">Why did you stop?</span>
+                </div>
+
+                <div class="overflow-y-auto" style="max-height: 360px;">
+                    @foreach ($this->stopReasons as $reason)
+                        <button
+                            type="button"
+                            wire:click="chooseReason(@js($reason->label))"
+                            data-testid="pomodoro-reason"
+                            class="block w-full text-left hover:bg-white/10"
+                            style="padding: 11px 14px; font-size: 14px; color: #ffffff; border-top: 1px solid rgba(255,255,255,0.06);"
+                        >
+                            {{ $reason->label }}
+                        </button>
+                    @endforeach
+
+                    {{-- Add new reason: toggles an inline field, then stops with it. --}}
+                    @if ($addingReason)
+                        <div class="flex items-center gap-2" style="padding: 9px 14px; border-top: 1px solid rgba(255,255,255,0.06);">
+                            <input
+                                type="text"
+                                wire:model="newReason"
+                                wire:keydown.enter.prevent="addReason"
+                                data-testid="pomodoro-reason-input"
+                                placeholder="New reason"
+                                autofocus
+                                class="min-w-0 flex-1"
+                                style="background-color: #2e2e2e; color: #ffffff; border: 1px solid rgba(255,255,255,0.15); border-radius: 3px; padding: 5px 8px; font-size: 13px;"
+                            />
+                            <button type="button" wire:click="addReason" style="background-color: #4ac26b; color: #ffffff; border-radius: 3px; padding: 5px 10px; font-size: 13px; font-weight: 700;">Save</button>
+                        </div>
+                    @else
+                        <button
+                            type="button"
+                            wire:click="$set('addingReason', true)"
+                            class="block w-full text-left hover:bg-white/10"
+                            style="padding: 11px 14px; font-size: 14px; color: #b8b8b8; border-top: 1px solid rgba(255,255,255,0.06);"
+                        >
+                            Add new reason&hellip;
+                        </button>
+                    @endif
+
+                    {{-- "Task done" — emphasized, logs the session as completed work. --}}
+                    <button
+                        type="button"
+                        wire:click="chooseReason('Task done')"
+                        data-testid="pomodoro-reason-done"
+                        class="block w-full text-left hover:bg-white/10"
+                        style="padding: 11px 14px; font-size: 14px; font-weight: 700; color: #ffffff; border-top: 1px solid rgba(255,255,255,0.12);"
+                    >
+                        Task done
+                    </button>
+                </div>
+            </div>
+        @else
             {{-- Header --}}
             <div class="flex items-center justify-between" style="padding: 12px 14px; background-color: #3e3e3e;">
                 <span style="font-size: 17px; font-weight: 700; color: #ffffff;">{{ $mode === 'stopwatch' ? 'Stopwatch' : 'Pomodoro' }}</span>
@@ -140,8 +203,29 @@
                 {{-- Idle state, dark themed --}}
                 <div style="padding: 4px 14px 14px;">
                     <p style="font-size: 12px; font-weight: 600; color: #c9c9c9; margin-bottom: 4px;">{{ $mode === 'stopwatch' ? 'Session time' : 'Time until break' }}</p>
-                    <div class="font-mono tabular-nums" style="font-size: 40px; line-height: 1; font-weight: 700; color: #6f6f6f;">{{ $mode === 'stopwatch' ? '00:00' : '25:00' }}</div>
-                    <p style="font-size: 12px; color: #9a9a9a; margin-top: 8px;">Press ▶ on a task to start.</p>
+                    <div class="flex items-center justify-between">
+                        <div class="font-mono tabular-nums" style="font-size: 40px; line-height: 1; font-weight: 700; color: #6f6f6f;">{{ $mode === 'stopwatch' ? '00:00' : '25:00' }}</div>
+                        <button
+                            type="button"
+                            wire:click="startSelected"
+                            data-testid="pomodoro-start-button"
+                            class="inline-flex items-center gap-2 transition hover:opacity-90"
+                            style="background-color: #4d4d4d; border-radius: 3px; padding: 6px 10px;"
+                            title="Start"
+                        >
+                            <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 2px; background-color: #4ac26b;">
+                                <x-heroicon-m-play class="h-4 w-4" style="color: #ffffff;" />
+                            </span>
+                            <span style="font-size: 20px; font-weight: 700; color: #ffffff;">Start</span>
+                        </button>
+                    </div>
+                    @if ($alert)
+                        <p data-testid="pomodoro-alert" style="font-size: 12px; color: #f15a5a; margin-top: 8px;">{{ $alert }}</p>
+                    @elseif ($openTaskId)
+                        <p class="truncate" style="font-size: 12px; color: #9a9a9a; margin-top: 8px;" title="{{ $openTaskName }}">Start the timer for &ldquo;{{ $openTaskName }}&rdquo;.</p>
+                    @else
+                        <p style="font-size: 12px; color: #9a9a9a; margin-top: 8px;">Press Start, or &#9654; on a task.</p>
+                    @endif
                 </div>
             @endif
 
@@ -199,6 +283,7 @@
                     <span style="font-size: 10px;">Settings</span>
                 </button>
             </div>
+        @endif
         </div>
     @endif
 </div>

@@ -17,6 +17,7 @@ class TimeEntry extends Model
         'started_at',
         'ended_at',
         'seconds',
+        'reason',
     ];
 
     protected $casts = [

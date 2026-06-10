@@ -2,9 +2,11 @@
 
 namespace App\Livewire;
 
+use App\Models\StopReason;
 use App\Models\Task;
 use App\Models\TimeEntry;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
@@ -33,6 +35,21 @@ class PomodoroTimer extends Component
     public ?int $openTaskId = null;
 
     public ?string $openTaskName = null;
+
+    /** Transient warning shown in the idle panel (e.g. "pick a task first"). */
+    public ?string $alert = null;
+
+    /** When true, the "Why did you stop?" reason picker is showing. */
+    public bool $showStopReasons = false;
+
+    /** True while the inline "Add new reason..." field is open. */
+    public bool $addingReason = false;
+
+    /** Bound to the "Add new reason..." text field. */
+    public string $newReason = '';
+
+    /** Stop time captured when the picker opened, so a slow pick doesn't inflate the log. */
+    public ?string $pendingStopAt = null;
 
     public function mount(): void
     {
@@ -67,9 +84,10 @@ class PomodoroTimer extends Component
     #[On('start-pomodoro')]
     public function start(int $taskId): void
     {
-        // Only one timer runs at a time — close any open entry first.
+        // Only one timer runs at a time — close any open entry first. Switching
+        // tasks is intentional, so we log it straight away without prompting.
         if ($this->runningEntryId) {
-            $this->stop();
+            $this->finalizeRunningEntry();
         }
 
         $task = Task::findOrFail($taskId);
@@ -87,29 +105,142 @@ class PomodoroTimer extends Component
         $this->runningTaskName = $task->name;
         $this->runningStartedAt = $entry->started_at->toIso8601String();
         $this->showPanel = true;
+        $this->alert = null;
 
         // Surface the new running state to the top-bar pill and board badges.
         $this->dispatch('pomodoro-updated');
     }
 
+    /**
+     * Start the timer from the panel itself. Uses the task whose detail modal
+     * is open; if none is selected, nudges the user to pick one first.
+     */
+    public function startSelected(): void
+    {
+        if ($this->openTaskId) {
+            $this->start($this->openTaskId);
+
+            return;
+        }
+
+        $this->alert = 'Choose a task to start the timer.';
+    }
+
+    /**
+     * Stop button. Short or naturally-finished sessions are handled silently;
+     * a session stopped early pops the "Why did you stop?" picker first.
+     */
     public function stop(): void
     {
         $entry = $this->runningEntryId ? TimeEntry::find($this->runningEntryId) : null;
 
+        if (! $entry || $entry->ended_at !== null) {
+            $this->resetRunning();
+
+            return;
+        }
+
+        $seconds = (int) $entry->started_at->diffInSeconds(now());
+
+        // Under 15s gets discarded; a pomodoro that already ran its full work
+        // interval finished on its own. Neither needs an explanation.
+        if ($seconds < 15 || ($this->mode === 'pomodoro' && $seconds >= $this->workSeconds)) {
+            $this->finalizeRunningEntry();
+
+            return;
+        }
+
+        // Stopped early: remember when, then ask why before logging.
+        $this->pendingStopAt = now()->toIso8601String();
+        $this->showStopReasons = true;
+    }
+
+    /** A reason was chosen from the "Why did you stop?" picker. */
+    public function chooseReason(string $label): void
+    {
+        if (! $this->showStopReasons) {
+            return;
+        }
+
+        // "Wrong click" means the session should never have been logged.
+        if ($label === 'Wrong click') {
+            $entry = $this->runningEntryId ? TimeEntry::find($this->runningEntryId) : null;
+            $entry?->delete();
+            $this->dispatch('pomodoro-updated');
+            $this->resetRunning();
+        } else {
+            $end = $this->pendingStopAt ? Carbon::parse($this->pendingStopAt) : now();
+            $this->finalizeRunningEntry($label, $end);
+        }
+
+        $this->closeStopReasons();
+    }
+
+    /** Save the typed-in custom reason, then use it to stop the timer. */
+    public function addReason(): void
+    {
+        $label = trim($this->newReason);
+
+        if ($label === '') {
+            return;
+        }
+
+        StopReason::firstOrCreate(
+            ['label' => $label],
+            ['position' => (int) StopReason::max('position') + 1],
+        );
+
+        $this->chooseReason($label);
+    }
+
+    /** Back arrow / dismiss: leave the timer running, just close the picker. */
+    public function cancelStopReasons(): void
+    {
+        $this->closeStopReasons();
+    }
+
+    private function closeStopReasons(): void
+    {
+        $this->showStopReasons = false;
+        $this->addingReason = false;
+        $this->newReason = '';
+        $this->pendingStopAt = null;
+    }
+
+    /**
+     * Finalize whatever is running: discard if under 15s, otherwise log it with
+     * the given reason. Always clears the running state and refreshes badges.
+     */
+    private function finalizeRunningEntry(?string $reason = null, ?Carbon $end = null): void
+    {
+        $entry = $this->runningEntryId ? TimeEntry::find($this->runningEntryId) : null;
+
         if ($entry && $entry->ended_at === null) {
-            $end = now();
+            $end ??= now();
+            $seconds = (int) $entry->started_at->diffInSeconds($end);
 
-            $entry->update([
-                'ended_at' => $end,
-                'seconds' => (int) $entry->started_at->diffInSeconds($end),
-            ]);
+            // Discard accidental taps — anything under 15s never gets logged.
+            if ($seconds < 15) {
+                $entry->delete();
+            } else {
+                $entry->update([
+                    'ended_at' => $end,
+                    'seconds' => $seconds,
+                    'reason' => $reason,
+                ]);
 
-            $entry->task?->recalculateSecondsSpent();
+                $entry->task?->recalculateSecondsSpent();
+            }
 
             // Tell the board to refresh its time-spent badges.
             $this->dispatch('pomodoro-updated');
         }
 
+        $this->resetRunning();
+    }
+
+    private function resetRunning(): void
+    {
         $this->reset(['runningEntryId', 'runningTaskId', 'runningTaskName', 'runningStartedAt']);
     }
 
@@ -119,6 +250,7 @@ class PomodoroTimer extends Component
     {
         $this->openTaskId = $taskId;
         $this->openTaskName = $name;
+        $this->alert = null;
 
         // Surface the timer dialog beside the task modal whenever a task is
         // opened. When the open task differs from the running one, the panel
@@ -174,6 +306,13 @@ class PomodoroTimer extends Component
     public function toggleFromPill(): void
     {
         $this->togglePanel();
+    }
+
+    /** Configurable "Why did you stop?" reasons, in display order. */
+    #[Computed]
+    public function stopReasons(): Collection
+    {
+        return StopReason::orderBy('position')->orderBy('label')->get();
     }
 
     /** Today's entries, newest first, for the session log. */

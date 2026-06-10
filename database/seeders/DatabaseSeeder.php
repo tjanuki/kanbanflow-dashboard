@@ -28,5 +28,6 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $this->call(ColumnSeeder::class);
+        $this->call(StopReasonSeeder::class);
     }
 }
