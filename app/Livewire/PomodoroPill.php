@@ -15,6 +15,9 @@ class PomodoroPill extends Component
 {
     public int $workSeconds = 1500;
 
+    /** Mirrors the running session's kind so the pill counts the right way. */
+    public string $mode = 'pomodoro';
+
     public ?int $runningEntryId = null;
 
     public ?string $runningStartedAt = null;
@@ -38,6 +41,10 @@ class PomodoroPill extends Component
 
         $this->runningEntryId = $entry->id;
         $this->runningStartedAt = $entry->started_at->toIso8601String();
+
+        if (in_array($entry->type, ['pomodoro', 'stopwatch'], true)) {
+            $this->mode = $entry->type;
+        }
     }
 
     /** Click → toggle the floating popup managed by PomodoroTimer. */

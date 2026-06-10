@@ -15,6 +15,9 @@ class PomodoroTimer extends Component
     /** Default work interval (25 minutes), used by the Alpine countdown. */
     public int $workSeconds = 1500;
 
+    /** Active timer mode: 'pomodoro' (count down) or 'stopwatch' (count up). */
+    public string $mode = 'pomodoro';
+
     public bool $showPanel = false;
 
     public ?int $runningEntryId = null;
@@ -54,6 +57,11 @@ class PomodoroTimer extends Component
         $this->runningTaskId = $entry->task_id;
         $this->runningTaskName = $entry->task?->name;
         $this->runningStartedAt = $entry->started_at->toIso8601String();
+
+        // Reflect the running session's kind so the display counts the right way.
+        if (in_array($entry->type, ['pomodoro', 'stopwatch'], true)) {
+            $this->mode = $entry->type;
+        }
     }
 
     #[On('start-pomodoro')]
@@ -68,7 +76,7 @@ class PomodoroTimer extends Component
 
         $entry = TimeEntry::create([
             'task_id' => $task->id,
-            'type' => 'pomodoro',
+            'type' => $this->mode,
             'started_at' => now(),
             'ended_at' => null,
             'seconds' => 0,
@@ -137,6 +145,22 @@ class PomodoroTimer extends Component
     {
         if ($this->openTaskId) {
             $this->start($this->openTaskId);
+        }
+    }
+
+    /** Switch between Pomodoro (count down) and Stopwatch (count up). */
+    public function setMode(string $mode): void
+    {
+        if (! in_array($mode, ['pomodoro', 'stopwatch'], true)) {
+            return;
+        }
+
+        $this->mode = $mode;
+
+        // Re-tag an in-progress session so its log entry and live display match.
+        if ($this->runningEntryId) {
+            TimeEntry::where('id', $this->runningEntryId)->update(['type' => $mode]);
+            $this->dispatch('pomodoro-updated');
         }
     }
 

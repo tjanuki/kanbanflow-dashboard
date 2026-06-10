@@ -1,31 +1,65 @@
 @php
     use App\Support\Format;
 
-    // Reusable Alpine countdown definition. `start` is an ISO string or null.
-    $clock = fn (?string $start, int $work) => "{
+    // Reusable Alpine clock. `start` is an ISO string or null; `mode` is
+    // 'pomodoro' (count down to 0) or 'stopwatch' (count up indefinitely).
+    $clock = fn (?string $start, int $work, string $mode = 'pomodoro') => "{
         startedAt: " . ($start ? "'{$start}'" : 'null') . ",
         work: {$work},
+        mode: '{$mode}',
+        notified: false,
         now: Math.floor(Date.now() / 1000),
         timer: null,
-        init() { this.tick(); this.timer = setInterval(() => this.tick(), 1000); },
+        init() {
+            this.tick();
+            this.timer = setInterval(() => this.tick(), 1000);
+            if (this.mode === 'pomodoro' && window.Notification && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+        },
         destroy() { clearInterval(this.timer); },
-        tick() { this.now = Math.floor(Date.now() / 1000); },
+        tick() {
+            this.now = Math.floor(Date.now() / 1000);
+            // Fire the break notification once, the moment a pomodoro hits 0:00.
+            if (this.mode === 'pomodoro' && this.startedAt && this.remaining <= 0 && ! this.notified) {
+                this.notified = true;
+                this.fireNotification();
+            }
+        },
         get elapsed() {
             if (! this.startedAt) return 0;
             return Math.max(0, this.now - Math.floor(new Date(this.startedAt).getTime() / 1000));
         },
         get remaining() { return Math.max(0, this.work - this.elapsed); },
+        // A finished pomodoro sits at 0:00 and flashes until the user stops it.
+        get finished() { return this.mode === 'pomodoro' && !! this.startedAt && this.remaining <= 0; },
+        fireNotification() {
+            try {
+                if (window.Notification && Notification.permission === 'granted') {
+                    new Notification('Pomodoro finished', { body: 'Time for a break — press Stop to log it.' });
+                }
+            } catch (e) {}
+        },
         fmt(s) {
             const m = Math.floor(s / 60).toString().padStart(2, '0');
             const sec = (s % 60).toString().padStart(2, '0');
             return m + ':' + sec;
         },
-        get label() { return this.startedAt ? this.fmt(this.remaining) : this.fmt(this.work); },
+        get label() {
+            if (! this.startedAt) return this.mode === 'pomodoro' ? this.fmt(this.work) : this.fmt(0);
+            return this.mode === 'pomodoro' ? this.fmt(this.remaining) : this.fmt(this.elapsed);
+        },
     }";
 @endphp
 
 <div class="pointer-events-none fixed inset-0" style="z-index: 80;">
     {{-- The launcher now lives in the top bar (see PomodoroPill / USER_MENU_BEFORE). --}}
+
+    {{-- Slow flash for a finished pomodoro (Tailwind animate-* utilities are absent in Filament CSS). --}}
+    <style>
+        @keyframes pomodoroFlash { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+        .pomodoro-flash { animation: pomodoroFlash 1.6s ease-in-out infinite; }
+    </style>
 
     {{--
         Panel position: when a task's detail modal is open it docks just left
@@ -48,7 +82,7 @@
         >
             {{-- Header --}}
             <div class="flex items-center justify-between" style="padding: 12px 14px; background-color: #3e3e3e;">
-                <span style="font-size: 17px; font-weight: 700; color: #ffffff;">Pomodoro</span>
+                <span style="font-size: 17px; font-weight: 700; color: #ffffff;">{{ $mode === 'stopwatch' ? 'Stopwatch' : 'Pomodoro' }}</span>
                 <button type="button" wire:click="togglePanel" title="Collapse" style="color: #cfcfcf;" class="hover:text-white">
                     <x-heroicon-m-chevron-up class="h-5 w-5" />
                 </button>
@@ -57,12 +91,13 @@
             @if ($runningEntryId)
                 {{-- Countdown row: label, then big time + Stop button --}}
                 <div style="padding: 4px 14px 12px;">
-                    <p style="font-size: 12px; font-weight: 600; color: #c9c9c9; margin-bottom: 4px;">Time until break</p>
+                    <p style="font-size: 12px; font-weight: 600; color: #c9c9c9; margin-bottom: 4px;">{{ $mode === 'stopwatch' ? 'Session time' : 'Time until break' }}</p>
                     <div class="flex items-center justify-between">
                         <div
-                            wire:key="clock-panel-{{ $runningEntryId }}"
-                            x-data="{{ $clock($runningStartedAt, $workSeconds) }}"
+                            wire:key="clock-panel-{{ $runningEntryId }}-{{ $mode }}"
+                            x-data="{{ $clock($runningStartedAt, $workSeconds, $mode) }}"
                             class="font-mono tabular-nums"
+                            :class="{ 'pomodoro-flash': finished }"
                             style="font-size: 40px; line-height: 1; font-weight: 700; color: #ffffff;"
                         >
                             <span x-text="label"></span>
@@ -104,8 +139,8 @@
             @else
                 {{-- Idle state, dark themed --}}
                 <div style="padding: 4px 14px 14px;">
-                    <p style="font-size: 12px; font-weight: 600; color: #c9c9c9; margin-bottom: 4px;">Time until break</p>
-                    <div class="font-mono tabular-nums" style="font-size: 40px; line-height: 1; font-weight: 700; color: #6f6f6f;">25:00</div>
+                    <p style="font-size: 12px; font-weight: 600; color: #c9c9c9; margin-bottom: 4px;">{{ $mode === 'stopwatch' ? 'Session time' : 'Time until break' }}</p>
+                    <div class="font-mono tabular-nums" style="font-size: 40px; line-height: 1; font-weight: 700; color: #6f6f6f;">{{ $mode === 'stopwatch' ? '00:00' : '25:00' }}</div>
                     <p style="font-size: 12px; color: #9a9a9a; margin-top: 8px;">Press ▶ on a task to start.</p>
                 </div>
             @endif
@@ -142,10 +177,11 @@
 
             {{-- Footer toolbar (Stopwatch / Add time / Log / Settings — stubs for a later pass) --}}
             <div data-testid="pomodoro-footer" class="flex items-stretch" style="background-color: #2e2e2e;">
-                {{-- TODO: wire Stopwatch to a type=stopwatch time entry. --}}
-                <button type="button" class="flex flex-1 flex-col items-center gap-1 hover:bg-white/5" style="padding: 8px 0; color: #dcdcdc;" title="Stopwatch (coming soon)">
+                {{-- Toggle: shows the other mode and switches to it (re-tags a live session). --}}
+                @php $altMode = $mode === 'stopwatch' ? 'pomodoro' : 'stopwatch'; @endphp
+                <button type="button" wire:click="setMode('{{ $altMode }}')" data-testid="pomodoro-mode-toggle" class="flex flex-1 flex-col items-center gap-1 hover:bg-white/5" style="padding: 8px 0; color: #dcdcdc;" title="Switch to {{ ucfirst($altMode) }}">
                     <x-heroicon-m-clock class="h-4 w-4" />
-                    <span style="font-size: 10px;">Stopwatch</span>
+                    <span style="font-size: 10px;">{{ ucfirst($altMode) }}</span>
                 </button>
                 {{-- TODO: manual "Add time" entry. --}}
                 <button type="button" class="flex flex-1 flex-col items-center gap-1 hover:bg-white/5" style="padding: 8px 0; color: #dcdcdc;" title="Add time (coming soon)">

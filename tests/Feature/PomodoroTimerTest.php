@@ -136,6 +136,63 @@ it('keeps the panel open even when the open task matches the running task', func
         ->assertDontSee('Change task');
 });
 
+it('logs the session as stopwatch when stopwatch mode is selected', function () {
+    $task = pomodoroTask();
+
+    Livewire::test(PomodoroTimer::class)
+        ->call('setMode', 'stopwatch')
+        ->assertSet('mode', 'stopwatch')
+        ->call('start', $task->id);
+
+    expect(TimeEntry::sole()->type)->toBe('stopwatch');
+});
+
+it('re-tags a running session when the mode is toggled mid-run', function () {
+    $task = pomodoroTask();
+
+    $component = Livewire::test(PomodoroTimer::class)
+        ->call('start', $task->id);
+
+    expect(TimeEntry::sole()->type)->toBe('pomodoro');
+
+    $component->call('setMode', 'stopwatch')
+        ->assertSet('mode', 'stopwatch')
+        ->assertDispatched('pomodoro-updated');
+
+    expect(TimeEntry::sole()->type)->toBe('stopwatch');
+});
+
+it('ignores an unknown mode', function () {
+    Livewire::test(PomodoroTimer::class)
+        ->call('setMode', 'nonsense')
+        ->assertSet('mode', 'pomodoro');
+});
+
+it('hydrates the mode from a running stopwatch entry on mount', function () {
+    $task = pomodoroTask();
+    TimeEntry::create([
+        'task_id' => $task->id,
+        'type' => 'stopwatch',
+        'started_at' => now()->subMinutes(2),
+        'ended_at' => null,
+        'seconds' => 0,
+    ]);
+
+    Livewire::test(PomodoroTimer::class)->assertSet('mode', 'stopwatch');
+});
+
+it('does not count stopwatch sessions toward the pomodoro tally', function () {
+    $task = pomodoroTask();
+
+    TimeEntry::create(['task_id' => $task->id, 'type' => 'pomodoro', 'started_at' => now(), 'ended_at' => now(), 'seconds' => 1500]);
+    TimeEntry::create(['task_id' => $task->id, 'type' => 'stopwatch', 'started_at' => now(), 'ended_at' => now(), 'seconds' => 600]);
+
+    $state = Livewire::test(PomodoroTimer::class);
+
+    expect($state->instance()->todaySeconds)->toBe(2100)
+        ->and($state->instance()->todayPomodoros)->toBe(1);
+});
+
 it('reports today total seconds and completed pomodoro count', function () {
     $task = pomodoroTask();
 
