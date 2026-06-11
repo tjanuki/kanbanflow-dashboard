@@ -14,6 +14,10 @@ class MonthlyTasksChart extends ChartWidget
 
     protected function getData(): array
     {
+        $monthExpression = Estimate::query()->getConnection()->getDriverName() === 'sqlite'
+            ? "strftime('%Y-%m', tasks.date)"
+            : "DATE_FORMAT(tasks.date, '%Y-%m')";
+
         $dailyEstimates = Estimate::query()
             ->selectRaw('estimates.date, SUM(tasks.total_seconds_spent) as total_seconds_spent, MAX(estimates.estimated_seconds) as estimated_seconds')
             ->withDefaultProjects()
@@ -23,7 +27,7 @@ class MonthlyTasksChart extends ChartWidget
 
         // show monthly tasks summary by weekly
         $data = Estimate::query()
-            ->selectRaw("DATE_FORMAT(tasks.date, '%Y-%m') as month, SUM(tasks.total_seconds_spent) as total_seconds_spent, SUM(estimates.estimated_seconds) as estimated_seconds")
+            ->selectRaw("{$monthExpression} as month, SUM(tasks.total_seconds_spent) as total_seconds_spent, SUM(estimates.estimated_seconds) as estimated_seconds")
             ->leftJoinSub($dailyEstimates, 'tasks', function ($join) {
                 $join->on('estimates.date', '=', 'tasks.date');
             })

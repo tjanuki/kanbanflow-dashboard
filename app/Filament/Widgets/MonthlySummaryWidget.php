@@ -15,6 +15,10 @@ class MonthlySummaryWidget extends BaseWidget
 
     public function table(Table $table): Table
     {
+        $monthExpression = Estimate::query()->getConnection()->getDriverName() === 'sqlite'
+            ? "strftime('%Y-%m', tasks.date)"
+            : "DATE_FORMAT(tasks.date, '%Y-%m')";
+
         $dailyEstimates = Estimate::query()
             ->selectRaw('estimates.date, SUM(tasks.total_seconds_spent) as total_seconds_spent, MAX(estimates.estimated_seconds) as estimated_seconds')
             ->withDefaultProjects()
@@ -25,7 +29,7 @@ class MonthlySummaryWidget extends BaseWidget
         return $table
             ->query(
                 Estimate::query()
-                    ->selectRaw("DATE_FORMAT(tasks.date, '%Y-%m') as month, SUM(tasks.total_seconds_spent) as total_seconds_spent, SUM(estimates.estimated_seconds) as estimated_seconds")
+                    ->selectRaw("{$monthExpression} as month, SUM(tasks.total_seconds_spent) as total_seconds_spent, SUM(estimates.estimated_seconds) as estimated_seconds")
                     ->joinSub($dailyEstimates, 'tasks', function ($join) {
                         $join->on('estimates.date', '=', 'tasks.date');
                     })

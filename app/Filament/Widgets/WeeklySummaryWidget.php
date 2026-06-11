@@ -14,6 +14,10 @@ class WeeklySummaryWidget extends BaseWidget
 
     public function table(Table $table): Table
     {
+        $weekStartExpression = Estimate::query()->getConnection()->getDriverName() === 'sqlite'
+            ? "DATE(tasks.date, '-' || ((CAST(strftime('%w', tasks.date) AS INTEGER) + 6) % 7) || ' days')"
+            : 'DATE(DATE_SUB(tasks.date, INTERVAL (DAYOFWEEK(tasks.date) - 2 + 7) % 7 DAY))';
+
         $dailyEstimates = Estimate::query()
             ->selectRaw('estimates.date, SUM(tasks.total_seconds_spent) as total_seconds_spent, MAX(estimates.estimated_seconds) as estimated_seconds')
             ->withDefaultProjects()
@@ -25,7 +29,7 @@ class WeeklySummaryWidget extends BaseWidget
             ->query(
                 Estimate::query()
                     ->selectRaw("
-                        DATE(DATE_SUB(tasks.date, INTERVAL (DAYOFWEEK(tasks.date) - 2 + 7) % 7 DAY)) as week_start,
+                        {$weekStartExpression} as week_start,
                         SUM(tasks.total_seconds_spent) as total_seconds_spent,
                         SUM(estimates.estimated_seconds) as estimated_seconds
                     ")

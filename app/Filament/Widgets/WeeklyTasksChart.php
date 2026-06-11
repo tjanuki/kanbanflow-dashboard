@@ -12,6 +12,10 @@ class WeeklyTasksChart extends ChartWidget
 
     protected function getData(): array
     {
+        $weekStartExpression = Estimate::query()->getConnection()->getDriverName() === 'sqlite'
+            ? "DATE(tasks.date, '-' || ((CAST(strftime('%w', tasks.date) AS INTEGER) + 6) % 7) || ' days')"
+            : 'DATE(DATE_SUB(tasks.date, INTERVAL (DAYOFWEEK(tasks.date) - 2 + 7) % 7 DAY))';
+
         $dailyEstimates = Estimate::query()
             ->selectRaw('estimates.date, SUM(tasks.total_seconds_spent) as total_seconds_spent, MAX(estimates.estimated_seconds) as estimated_seconds')
             ->withDefaultProjects()
@@ -22,7 +26,7 @@ class WeeklyTasksChart extends ChartWidget
         // show monthly tasks summary by weekly
         $data = Estimate::query()
             ->selectRaw("
-                DATE(DATE_SUB(tasks.date, INTERVAL (DAYOFWEEK(tasks.date) - 2 + 7) % 7 DAY)) as week,
+                {$weekStartExpression} as week,
                 SUM(tasks.total_seconds_spent) as total_seconds_spent,
                 SUM(estimates.estimated_seconds) as estimated_seconds
             ")
