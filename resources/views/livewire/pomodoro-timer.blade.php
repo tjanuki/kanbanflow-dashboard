@@ -272,8 +272,7 @@
                     <x-heroicon-m-pencil-square class="h-4 w-4" />
                     <span style="font-size: 10px;">Add time</span>
                 </button>
-                {{-- TODO: full time log view. --}}
-                <button type="button" class="flex flex-1 flex-col items-center gap-1 hover:bg-white/5" style="padding: 8px 0; color: #dcdcdc;" title="Log (coming soon)">
+                <button type="button" wire:click="openLog" data-testid="pomodoro-log-button" class="flex flex-1 flex-col items-center gap-1 hover:bg-white/5" style="padding: 8px 0; color: #dcdcdc;" title="Log">
                     <x-heroicon-m-queue-list class="h-4 w-4" />
                     <span style="font-size: 10px;">Log</span>
                 </button>
@@ -284,6 +283,123 @@
                 </button>
             </div>
         @endif
+        </div>
+    @endif
+
+    {{-- Timer log modal (Log button in the footer toolbar) --}}
+    @if ($showLog)
+        @php
+            // Same accent colours as the board palette (task-board.blade.php).
+            $dots = [
+                'white' => '#9ca3af', 'yellow' => '#f59e0b', 'green' => '#22c55e',
+                'blue' => '#3b9fd6', 'purple' => '#8b5cf6', 'red' => '#ef4444',
+                'orange' => '#f97316', 'magenta' => '#ec4899', 'cyan' => '#06b6d4',
+                'brown' => '#8d6e63',
+            ];
+        @endphp
+        <div
+            data-testid="timer-log-modal"
+            class="pointer-events-auto fixed inset-0 flex items-start justify-center overflow-y-auto"
+            style="z-index: 90; background-color: rgba(0, 0, 0, 0.45); padding: 24px 16px; overscroll-behavior: contain;"
+            wire:click.self="closeLog"
+            x-on:keydown.escape.window="$wire.closeLog()"
+            {{-- Lock the page behind the modal so the wheel scrolls the log, not the board. --}}
+            x-data="{
+                prevHtml: '',
+                prevBody: '',
+                init() {
+                    this.prevHtml = document.documentElement.style.overflow;
+                    this.prevBody = document.body.style.overflow;
+                    document.documentElement.style.overflow = 'hidden';
+                    document.body.style.overflow = 'hidden';
+                },
+                destroy() {
+                    document.documentElement.style.overflow = this.prevHtml;
+                    document.body.style.overflow = this.prevBody;
+                },
+            }"
+        >
+            <div class="flex w-full flex-col bg-white" style="max-width: 640px; max-height: calc(100vh - 48px); border-radius: 6px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); color: #1f2937;">
+                {{-- Header --}}
+                <div class="relative flex-none" style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb;">
+                    <h2 class="text-center" style="font-size: 16px; font-weight: 700;">Timer log</h2>
+                    <button type="button" wire:click="closeLog" class="absolute hover:text-gray-700" style="top: 14px; right: 14px; color: #9ca3af;" title="Close">
+                        <x-heroicon-m-x-mark class="h-5 w-5" />
+                    </button>
+                </div>
+
+                {{-- Filters --}}
+                <div class="flex flex-none flex-wrap items-center gap-2" style="padding: 10px 16px; border-bottom: 1px solid #e5e7eb;">
+                    <select
+                        wire:model.live="logPeriod"
+                        data-testid="timer-log-period"
+                        style="border: 1px solid #d1d5db; border-radius: 4px; padding: 5px 28px 5px 8px; font-size: 13px; color: #1f2937; background-color: #ffffff;"
+                    >
+                        <option value="today">Period: Today</option>
+                        <option value="this_week">Period: This week</option>
+                        <option value="this_last_week">Period: This + Last week</option>
+                        <option value="this_month">Period: This month</option>
+                        <option value="all">Period: All time</option>
+                    </select>
+                    <select
+                        wire:model.live="logType"
+                        data-testid="timer-log-type"
+                        style="border: 1px solid #d1d5db; border-radius: 4px; padding: 5px 28px 5px 8px; font-size: 13px; color: #1f2937; background-color: #ffffff;"
+                    >
+                        <option value="all">Entry type: All</option>
+                        <option value="pomodoro">Entry type: Pomodoro</option>
+                        <option value="stopwatch">Entry type: Stopwatch</option>
+                    </select>
+                </div>
+
+                {{-- Day groups --}}
+                <div class="min-h-0 flex-1 overflow-y-auto" style="padding: 12px 16px; background-color: #f3f4f6; overscroll-behavior: contain;">
+                    @forelse ($this->logDays as $day)
+                        <div class="bg-white" style="border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 12px;">
+                            {{-- Day header: label + totals --}}
+                            <div class="flex items-baseline gap-4" style="padding: 10px 14px; border-bottom: 1px solid #e5e7eb;">
+                                <span style="font-size: 16px; font-weight: 700;">{{ $day['label'] }}</span>
+                                <span style="font-size: 12px; font-weight: 600; color: #6b7280;">{{ Format::seconds($day['seconds']) }}</span>
+                                <span style="font-size: 12px; font-weight: 600; color: #6b7280;">{{ $day['pomodoros'] }} {{ \Illuminate\Support\Str::plural('Pomodoro', $day['pomodoros']) }}</span>
+                            </div>
+
+                            @foreach ($day['entries'] as $entry)
+                                @php
+                                    $successful = $entry->type === 'pomodoro' && $entry->seconds >= $workSeconds;
+                                    $sublabel = $successful
+                                        ? 'Successful Pomodoro'
+                                        : ($entry->reason ?? ($entry->type === 'stopwatch' ? 'Stopwatch' : null));
+                                @endphp
+                                <div class="group flex items-start gap-2" style="padding: 9px 14px; border-top: 1px solid #f3f4f6;" wire:key="log-entry-{{ $entry->id }}">
+                                    <span style="display: inline-block; width: 10px; height: 10px; margin-top: 4px; border-radius: 9999px; flex: none; background-color: {{ $dots[$entry->task?->color] ?? '#9ca3af' }};"></span>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="truncate" style="font-size: 13px; font-weight: 700;">{{ $entry->task?->name ?? '—' }}</p>
+                                        @if ($sublabel)
+                                            <p style="font-size: 12px; font-style: italic; color: {{ $successful ? '#15803d' : '#6b7280' }};">{{ $sublabel }}</p>
+                                        @endif
+                                    </div>
+                                    <div class="flex flex-none items-center gap-3" style="padding-top: 1px;">
+                                        <span class="font-mono" style="font-size: 12px; color: #374151;">{{ $entry->started_at->format('g:i A') }} - {{ $entry->ended_at->format('g:i A') }}</span>
+                                        <span class="font-mono" style="font-size: 12px; color: #374151; min-width: 32px; text-align: right;">{{ Format::seconds($entry->seconds) }}</span>
+                                        <button
+                                            type="button"
+                                            wire:click="deleteLogEntry({{ $entry->id }})"
+                                            wire:confirm="Delete this time entry?"
+                                            class="opacity-0 hover:!text-red-600 group-hover:opacity-100"
+                                            style="color: #9ca3af;"
+                                            title="Delete entry"
+                                        >
+                                            <x-heroicon-m-trash class="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @empty
+                        <p class="bg-white text-center" style="border: 1px solid #e5e7eb; border-radius: 6px; padding: 24px; font-size: 13px; color: #6b7280;">No time entries in this period.</p>
+                    @endforelse
+                </div>
+            </div>
         </div>
     @endif
 </div>

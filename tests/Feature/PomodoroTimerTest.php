@@ -320,3 +320,82 @@ it('reports today total seconds and completed pomodoro count', function () {
     expect($state->instance()->todaySeconds)->toBe(2400)
         ->and($state->instance()->todayPomodoros)->toBe(2);
 });
+
+it('opens and closes the timer log modal', function () {
+    Livewire::test(PomodoroTimer::class)
+        ->call('openLog')
+        ->assertSet('showLog', true)
+        ->assertSee('Timer log')
+        ->call('closeLog')
+        ->assertSet('showLog', false);
+});
+
+it('groups log entries by day with totals, newest day first', function () {
+    $task = pomodoroTask();
+
+    Carbon::setTestNow('2026-06-12 10:00:00');
+
+    TimeEntry::create(['task_id' => $task->id, 'type' => 'pomodoro', 'started_at' => now()->subDay()->setTime(9, 0), 'ended_at' => now()->subDay()->setTime(9, 25), 'seconds' => 1500]);
+    TimeEntry::create(['task_id' => $task->id, 'type' => 'pomodoro', 'started_at' => now()->setTime(8, 0), 'ended_at' => now()->setTime(8, 25), 'seconds' => 1500]);
+    TimeEntry::create(['task_id' => $task->id, 'type' => 'stopwatch', 'started_at' => now()->setTime(9, 0), 'ended_at' => now()->setTime(9, 10), 'seconds' => 600]);
+    // Running entries stay out of the log until they are stopped.
+    TimeEntry::create(['task_id' => $task->id, 'type' => 'pomodoro', 'started_at' => now(), 'ended_at' => null, 'seconds' => 0]);
+
+    $days = Livewire::test(PomodoroTimer::class)->instance()->logDays;
+
+    expect($days)->toHaveCount(2)
+        ->and($days[0]['label'])->toBe('Today')
+        ->and($days[0]['seconds'])->toBe(2100)
+        ->and($days[0]['pomodoros'])->toBe(1)
+        ->and($days[0]['entries'])->toHaveCount(2)
+        ->and($days[1]['label'])->toBe('Yesterday')
+        ->and($days[1]['seconds'])->toBe(1500);
+});
+
+it('filters the log by period and entry type', function () {
+    $task = pomodoroTask();
+
+    Carbon::setTestNow('2026-06-12 10:00:00');
+
+    TimeEntry::create(['task_id' => $task->id, 'type' => 'pomodoro', 'started_at' => now()->subWeeks(3), 'ended_at' => now()->subWeeks(3)->addMinutes(25), 'seconds' => 1500]);
+    TimeEntry::create(['task_id' => $task->id, 'type' => 'pomodoro', 'started_at' => now()->setTime(8, 0), 'ended_at' => now()->setTime(8, 25), 'seconds' => 1500]);
+    TimeEntry::create(['task_id' => $task->id, 'type' => 'stopwatch', 'started_at' => now()->setTime(9, 0), 'ended_at' => now()->setTime(9, 10), 'seconds' => 600]);
+
+    $component = Livewire::test(PomodoroTimer::class);
+
+    // Default period (this + last week) hides the three-week-old entry.
+    expect($component->instance()->logDays->sum(fn ($day) => $day['entries']->count()))->toBe(2);
+
+    $component->set('logPeriod', 'all');
+    expect($component->instance()->logDays->sum(fn ($day) => $day['entries']->count()))->toBe(3);
+
+    $component->set('logType', 'stopwatch');
+    expect($component->instance()->logDays->sum(fn ($day) => $day['entries']->count()))->toBe(1);
+});
+
+it('deletes a log entry and rolls its time off the task', function () {
+    $task = pomodoroTask();
+
+    $entry = TimeEntry::create(['task_id' => $task->id, 'type' => 'pomodoro', 'started_at' => now()->subHour(), 'ended_at' => now()->subHour()->addMinutes(25), 'seconds' => 1500]);
+    TimeEntry::create(['task_id' => $task->id, 'type' => 'pomodoro', 'started_at' => now(), 'ended_at' => now()->addMinutes(15), 'seconds' => 900]);
+    $task->recalculateSecondsSpent();
+
+    Livewire::test(PomodoroTimer::class)
+        ->call('deleteLogEntry', $entry->id)
+        ->assertDispatched('pomodoro-updated');
+
+    expect(TimeEntry::count())->toBe(1)
+        ->and($task->fresh()->total_seconds_spent)->toBe(900);
+});
+
+it('clears the running timer when its entry is deleted from the log', function () {
+    $task = pomodoroTask();
+
+    $component = Livewire::test(PomodoroTimer::class)->call('start', $task->id);
+    $entryId = $component->get('runningEntryId');
+
+    $component->call('deleteLogEntry', $entryId)
+        ->assertSet('runningEntryId', null);
+
+    expect(TimeEntry::count())->toBe(0);
+});

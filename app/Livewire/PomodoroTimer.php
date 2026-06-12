@@ -51,6 +51,15 @@ class PomodoroTimer extends Component
     /** Stop time captured when the picker opened, so a slow pick doesn't inflate the log. */
     public ?string $pendingStopAt = null;
 
+    /** When true, the full "Timer log" modal is showing. */
+    public bool $showLog = false;
+
+    /** Timer log period filter. */
+    public string $logPeriod = 'this_last_week';
+
+    /** Timer log entry-type filter: 'all', 'pomodoro' or 'stopwatch'. */
+    public string $logType = 'all';
+
     public function mount(): void
     {
         $this->loadRunningEntry();
@@ -299,6 +308,76 @@ class PomodoroTimer extends Component
     public function togglePanel(): void
     {
         $this->showPanel = ! $this->showPanel;
+    }
+
+    public function openLog(): void
+    {
+        $this->showLog = true;
+    }
+
+    public function closeLog(): void
+    {
+        $this->showLog = false;
+    }
+
+    /** Remove an entry from the Timer log and roll its time off the task. */
+    public function deleteLogEntry(int $entryId): void
+    {
+        $entry = TimeEntry::find($entryId);
+
+        if (! $entry) {
+            return;
+        }
+
+        $task = $entry->task;
+        $entry->delete();
+        $task?->recalculateSecondsSpent();
+
+        // A running entry can be deleted from the log too — clear the live timer.
+        if ($entryId === $this->runningEntryId) {
+            $this->resetRunning();
+        }
+
+        $this->dispatch('pomodoro-updated');
+    }
+
+    /**
+     * Completed entries for the Timer log, filtered by period/type and grouped
+     * by day (newest day first, entries within a day in start order).
+     *
+     * @return Collection<int, array{date: Carbon, label: string, seconds: int, pomodoros: int, entries: Collection<int, TimeEntry>}>
+     */
+    #[Computed]
+    public function logDays(): Collection
+    {
+        $start = match ($this->logPeriod) {
+            'today' => today(),
+            'this_week' => now()->startOfWeek(),
+            'this_last_week' => now()->subWeek()->startOfWeek(),
+            'this_month' => now()->startOfMonth(),
+            default => null, // all time
+        };
+
+        return TimeEntry::with('task')
+            ->whereNotNull('ended_at')
+            ->when($start, fn ($query) => $query->where('started_at', '>=', $start))
+            ->when($this->logType !== 'all', fn ($query) => $query->where('type', $this->logType))
+            ->orderBy('started_at')
+            ->get()
+            ->groupBy(fn (TimeEntry $entry) => $entry->started_at->toDateString())
+            ->map(function (Collection $entries, string $date) {
+                $day = Carbon::parse($date);
+
+                return [
+                    'date' => $day,
+                    'label' => $day->isToday() ? 'Today' : ($day->isYesterday() ? 'Yesterday' : $day->format('l, j F')),
+                    'seconds' => (int) $entries->sum('seconds'),
+                    'pomodoros' => $entries->where('type', 'pomodoro')->count(),
+                    'entries' => $entries,
+                ];
+            })
+            ->sortByDesc(fn (array $day) => $day['date'])
+            ->values();
     }
 
     /** Toggled from the top-bar pill ({@see PomodoroPill}). */
