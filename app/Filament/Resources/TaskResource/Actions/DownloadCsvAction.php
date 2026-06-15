@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Filament\Resources\TaskResource\Actions;
+
 use App\Models\Task;
 use Filament\Forms\Components\DatePicker;
 use Filament\Tables\Actions\Action;
@@ -44,7 +45,7 @@ class DownloadCsvAction extends Action
                         $totalSpentHours += (float) $spentHours;
 
                         fputcsv($handle, [
-                            $task->date,
+                            $task->date?->format('Y-m-d'),
                             $task->name,
                             $spentHours,
 
@@ -56,6 +57,6 @@ class DownloadCsvAction extends Action
                     fclose($handle);
                 }, 'tasks_export.csv');
             });
-        ;
+
     }
 }

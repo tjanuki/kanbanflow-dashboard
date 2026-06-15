@@ -30,11 +30,12 @@ class TaskResource extends Resource
     public static function table(Table $table): Table
     {
         $mainProject = Project::where('is_default', true)->orderBy('id')->first();
+
         return $table
             ->paginationPageOptions([10, 25, 50, 100])
             ->defaultPaginationPageOption(100)
             ->columns([
-                Tables\Columns\TextColumn::make('date')->sortable(),
+                Tables\Columns\TextColumn::make('date')->date('Y-m-d')->sortable(),
                 Tables\Columns\TextColumn::make('project.name')->label('Project'),
                 Tables\Columns\TextColumn::make('name'),
                 Tables\Columns\TextColumn::make('total_seconds_spent')

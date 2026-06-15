@@ -6,6 +6,7 @@ use App\Models\Task;
 use Filament\Actions\Exports\ExportColumn;
 use Filament\Actions\Exports\Exporter;
 use Filament\Actions\Exports\Models\Export;
+use Illuminate\Support\Carbon;
 
 class TaskExporter extends Exporter
 {
@@ -14,7 +15,8 @@ class TaskExporter extends Exporter
     public static function getColumns(): array
     {
         return [
-            ExportColumn::make('date'),
+            ExportColumn::make('date')
+                ->formatStateUsing(fn ($state) => Carbon::parse($state)->format('Y-m-d')),
             ExportColumn::make('name')->label('Task Name'),
             ExportColumn::make('total_seconds_spent')->label('Spent (Hours)')
                 ->formatStateUsing(function (int $state): string {
