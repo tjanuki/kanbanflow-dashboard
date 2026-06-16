@@ -60,6 +60,23 @@ class PomodoroTimer extends Component
     /** Timer log entry-type filter: 'all', 'pomodoro' or 'stopwatch'. */
     public string $logType = 'all';
 
+    /** When true, the "Add time manually" modal is showing. */
+    public bool $showAddTime = false;
+
+    /** Task the manual entry is logged against. */
+    public ?int $manualTaskId = null;
+
+    /** Manual entry date (Y-m-d). */
+    public string $manualDate = '';
+
+    /** Manual entry start/end clock times (H:i, 24h from <input type="time">). */
+    public string $manualFrom = '';
+
+    public string $manualTo = '';
+
+    /** Validation message surfaced inside the Add-time modal. */
+    public ?string $manualError = null;
+
     public function mount(): void
     {
         $this->loadRunningEntry();
@@ -320,6 +337,85 @@ class PomodoroTimer extends Component
         $this->showLog = false;
     }
 
+    /**
+     * Open the "Add time manually" modal, seeded with sensible defaults: the
+     * task in context (open or running), today's date and the current time.
+     */
+    public function openAddTime(): void
+    {
+        $this->manualTaskId = $this->openTaskId ?? $this->runningTaskId;
+        $this->manualDate = today()->toDateString();
+        $this->manualFrom = now()->format('H:i');
+        $this->manualTo = now()->format('H:i');
+        $this->manualError = null;
+        $this->showAddTime = true;
+    }
+
+    public function closeAddTime(): void
+    {
+        $this->showAddTime = false;
+        $this->manualError = null;
+    }
+
+    /** Validate the modal inputs and log a completed, manually-entered session. */
+    public function saveManualEntry(): void
+    {
+        $this->manualError = null;
+
+        $task = $this->manualTaskId ? Task::find($this->manualTaskId) : null;
+
+        if (! $task) {
+            $this->manualError = 'Choose a task.';
+
+            return;
+        }
+
+        try {
+            $day = Carbon::parse($this->manualDate)->startOfDay();
+            $start = $day->copy()->setTimeFromTimeString($this->manualFrom);
+            $end = $day->copy()->setTimeFromTimeString($this->manualTo);
+        } catch (\Throwable $e) {
+            $this->manualError = 'Enter a valid date and time.';
+
+            return;
+        }
+
+        $seconds = (int) $start->diffInSeconds($end, false);
+
+        if ($seconds <= 0) {
+            $this->manualError = 'The "To" time must be after the "From" time.';
+
+            return;
+        }
+
+        // Time is exclusive — refuse a window that overlaps an existing entry.
+        // A still-running entry occupies [started_at, now], so coalesce its end.
+        $overlaps = TimeEntry::query()
+            ->where('started_at', '<', $end->toDateTimeString())
+            ->whereRaw('COALESCE(ended_at, ?) > ?', [now()->toDateTimeString(), $start->toDateTimeString()])
+            ->exists();
+
+        if ($overlaps) {
+            $this->manualError = 'That time range overlaps an existing entry.';
+
+            return;
+        }
+
+        TimeEntry::create([
+            'task_id' => $task->id,
+            'type' => 'manual',
+            'started_at' => $start,
+            'ended_at' => $end,
+            'seconds' => $seconds,
+            'reason' => 'Added manually',
+        ]);
+
+        $task->recalculateSecondsSpent();
+        $this->dispatch('pomodoro-updated');
+
+        $this->showAddTime = false;
+    }
+
     /** Remove an entry from the Timer log and roll its time off the task. */
     public function deleteLogEntry(int $entryId): void
     {
@@ -385,6 +481,13 @@ class PomodoroTimer extends Component
     public function toggleFromPill(): void
     {
         $this->togglePanel();
+    }
+
+    /** Tasks selectable in the "Add time manually" modal, by name. */
+    #[Computed]
+    public function manualTaskOptions(): Collection
+    {
+        return Task::orderBy('name')->get(['id', 'name']);
     }
 
     /** Configurable "Why did you stop?" reasons, in display order. */

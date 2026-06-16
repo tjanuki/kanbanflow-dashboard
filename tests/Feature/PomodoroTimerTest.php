@@ -399,3 +399,117 @@ it('clears the running timer when its entry is deleted from the log', function (
 
     expect(TimeEntry::count())->toBe(0);
 });
+
+it('opens the add-time modal seeded with the open task and today', function () {
+    $task = pomodoroTask();
+
+    Carbon::setTestNow('2026-06-12 14:30:00');
+
+    Livewire::test(PomodoroTimer::class)
+        ->call('setOpenTask', $task->id, $task->name)
+        ->call('openAddTime')
+        ->assertSet('showAddTime', true)
+        ->assertSet('manualTaskId', $task->id)
+        ->assertSet('manualDate', '2026-06-12')
+        ->assertSet('manualFrom', '14:30')
+        ->assertSet('manualTo', '14:30')
+        ->assertSee('Add time manually');
+});
+
+it('logs a completed manual entry and updates total_seconds_spent', function () {
+    $task = pomodoroTask();
+
+    Livewire::test(PomodoroTimer::class)
+        ->set('manualTaskId', $task->id)
+        ->set('manualDate', '2026-06-12')
+        ->set('manualFrom', '09:00')
+        ->set('manualTo', '10:30')
+        ->call('saveManualEntry')
+        ->assertSet('showAddTime', false)
+        ->assertDispatched('pomodoro-updated');
+
+    $entry = TimeEntry::sole();
+
+    expect($entry->type)->toBe('manual')
+        ->and($entry->seconds)->toBe(5400)
+        ->and($entry->reason)->toBe('Added manually')
+        ->and($entry->started_at->format('Y-m-d H:i'))->toBe('2026-06-12 09:00')
+        ->and($entry->ended_at->format('Y-m-d H:i'))->toBe('2026-06-12 10:30')
+        ->and($task->fresh()->total_seconds_spent)->toBe(5400);
+});
+
+it('rejects a manual entry whose end is not after its start', function () {
+    $task = pomodoroTask();
+
+    Livewire::test(PomodoroTimer::class)
+        ->call('openAddTime')
+        ->set('manualTaskId', $task->id)
+        ->set('manualDate', '2026-06-12')
+        ->set('manualFrom', '10:00')
+        ->set('manualTo', '10:00')
+        ->call('saveManualEntry')
+        ->assertSet('showAddTime', true)
+        ->assertSet('manualError', fn ($v) => $v !== null);
+
+    expect(TimeEntry::count())->toBe(0);
+});
+
+it('rejects a manual entry that overlaps an existing entry', function () {
+    $task = pomodoroTask();
+
+    TimeEntry::create([
+        'task_id' => $task->id,
+        'type' => 'pomodoro',
+        'started_at' => Carbon::parse('2026-06-12 09:00'),
+        'ended_at' => Carbon::parse('2026-06-12 09:25'),
+        'seconds' => 1500,
+    ]);
+
+    Livewire::test(PomodoroTimer::class)
+        ->call('openAddTime')
+        ->set('manualTaskId', $task->id)
+        ->set('manualDate', '2026-06-12')
+        ->set('manualFrom', '09:10')
+        ->set('manualTo', '10:00')
+        ->call('saveManualEntry')
+        ->assertSet('showAddTime', true) // stays open so the user can fix it
+        ->assertSet('manualError', 'That time range overlaps an existing entry.');
+
+    expect(TimeEntry::count())->toBe(1);
+});
+
+it('allows a manual entry that abuts an existing one without overlapping', function () {
+    $task = pomodoroTask();
+
+    TimeEntry::create([
+        'task_id' => $task->id,
+        'type' => 'pomodoro',
+        'started_at' => Carbon::parse('2026-06-12 09:00'),
+        'ended_at' => Carbon::parse('2026-06-12 09:25'),
+        'seconds' => 1500,
+    ]);
+
+    Livewire::test(PomodoroTimer::class)
+        ->call('openAddTime')
+        ->set('manualTaskId', $task->id)
+        ->set('manualDate', '2026-06-12')
+        ->set('manualFrom', '09:25') // starts exactly when the other ends
+        ->set('manualTo', '10:00')
+        ->call('saveManualEntry')
+        ->assertSet('showAddTime', false)
+        ->assertSet('manualError', null);
+
+    expect(TimeEntry::count())->toBe(2);
+});
+
+it('rejects a manual entry with no task chosen', function () {
+    Livewire::test(PomodoroTimer::class)
+        ->set('manualTaskId', null)
+        ->set('manualDate', '2026-06-12')
+        ->set('manualFrom', '09:00')
+        ->set('manualTo', '10:00')
+        ->call('saveManualEntry')
+        ->assertSet('manualError', 'Choose a task.');
+
+    expect(TimeEntry::count())->toBe(0);
+});
