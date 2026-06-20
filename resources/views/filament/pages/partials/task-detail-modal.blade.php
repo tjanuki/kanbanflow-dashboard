@@ -24,9 +24,9 @@
         style="border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); transform: translateX(140px);"
     >
         {{-- Main content --}}
-        <div class="min-w-0 flex-1 p-5">
+        <div class="min-w-0 flex-1" style="padding: 1.25rem;">
             {{-- Color band + title --}}
-            <div class="-mx-5 -mt-5 mb-4 h-1.5" style="background-color: {{ $t['dot'] }};"></div>
+            <div class="h-1.5" style="margin: -1.25rem -1.25rem 1rem; background-color: {{ $t['dot'] }};"></div>
 
             <div class="mb-3 flex items-start justify-between gap-3">
                 <h2 class="text-lg font-semibold leading-snug text-gray-900 dark:text-gray-100">{{ $task->name }}</h2>
@@ -44,12 +44,6 @@
                     <dd class="flex items-center gap-2 text-gray-700 dark:text-gray-200">
                         <span class="inline-block h-3 w-3 rounded-full" style="background-color: {{ $t['dot'] }};"></span>
                         {{ $projectName }}
-                    </dd>
-                </div>
-                <div class="flex items-center gap-3">
-                    <dt class="w-24 flex-shrink-0 text-gray-400">Members</dt>
-                    <dd class="flex items-center gap-1.5">
-                        <span class="flex h-6 w-6 items-center justify-center rounded-full bg-gray-200 text-[10px] font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-200">ME</span>
                     </dd>
                 </div>
                 <div class="flex items-center gap-3">
@@ -93,7 +87,7 @@
         </div>
 
         {{-- Action rail --}}
-        <div class="flex w-14 flex-col items-center gap-1 border-l border-gray-100 bg-gray-50 py-3 dark:border-gray-800 dark:bg-gray-800/50">
+        <div class="flex w-14 flex-col items-center gap-1 border-l border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-800/50" style="padding: 0.75rem 0;">
             @php
                 $railBtn = 'flex h-10 w-10 flex-col items-center justify-center rounded-lg text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700';
             @endphp

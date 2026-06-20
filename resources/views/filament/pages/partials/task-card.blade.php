@@ -6,21 +6,34 @@
     $doneCount = $task->subTasks->where('finished', true)->count();
     $totalSubs = $task->subTasks->count();
     $isRunning = $runningTaskId === $task->id;
+    $isSelected = ($selectedTaskId ?? null) === $task->id;
     $projectName = $task->project?->name ?? $task->color;
     $initials = \Illuminate\Support\Str::of($projectName)->explode(' ')
         ->map(fn ($w) => \Illuminate\Support\Str::substr($w, 0, 1))
         ->take(2)->implode('');
+
+    // Build the card's inline style: full tint background + a left accent bar
+    // for the colour scheme, a dashed border while running, and a focus ring
+    // when the card is the one open in the detail modal (the "selected" mark).
+    $cardStyle = "background-color: {$t['bg']}; color: {$t['text']}; border-left: 4px solid {$t['dot']};";
+    if ($isRunning) {
+        $cardStyle .= " border-color: {$t['dot']};";
+    }
+    if ($isSelected) {
+        $cardStyle .= " box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px {$t['dot']}, 0 6px 14px -6px rgba(0,0,0,0.35);";
+    }
 @endphp
 
 <div
     data-task-id="{{ $task->id }}"
     wire:key="task-{{ $task->id }}"
+    wire:click="viewTask({{ $task->id }})"
     @class([
-        'group relative cursor-grab rounded-md text-[13px] shadow-sm active:cursor-grabbing',
+        'group relative cursor-grab rounded-md text-[13px] shadow-sm transition active:cursor-grabbing',
         'border border-transparent' => ! $isRunning,
         'border-2 border-dashed' => $isRunning,
     ])
-    style="padding: 12px 14px; background-color: {{ $t['bg'] }}; color: {{ $t['text'] }};@if ($isRunning) border-color: {{ $t['dot'] }};@endif"
+    style="padding: 11px 13px; {{ $cardStyle }}"
 >
     {{-- Running member badge --}}
     @if ($isRunning)
@@ -32,16 +45,12 @@
     @endif
 
     <div class="flex items-start justify-between gap-2">
-        <button
-            type="button"
-            wire:click="viewTask({{ $task->id }})"
-            class="flex-1 text-left font-medium leading-snug"
-        >
+        <span class="flex-1 text-left font-medium leading-snug">
             {{ $task->name }}
-        </button>
+        </span>
         <button
             type="button"
-            wire:click="deleteTask({{ $task->id }})"
+            wire:click.stop="deleteTask({{ $task->id }})"
             wire:confirm="Delete this task?"
             class="-mr-1 mt-0.5 text-gray-500/70 opacity-0 transition group-hover:opacity-100 hover:text-red-600"
             title="Delete task"
@@ -51,17 +60,16 @@
     </div>
 
     {{-- Meta icon row --}}
-    @if ($totalSubs > 0 || $task->total_seconds_spent > 0 || $isRunning)
-        <div class="mt-1.5 flex items-center gap-3 text-[11px] opacity-70">
+    <div class="mt-1.5 flex items-center gap-3 text-[11px] opacity-70">
             @if ($totalSubs > 0)
-                <span class="flex items-center gap-1" title="Subtasks done">
+                <span class="flex flex-shrink-0 items-center gap-1 whitespace-nowrap" title="Subtasks done">
                     <x-heroicon-m-list-bullet class="h-3.5 w-3.5" />
                     {{ $doneCount }}/{{ $totalSubs }}
                 </span>
             @endif
             @if ($task->total_seconds_spent > 0 || $isRunning)
-                <span class="flex items-center gap-1" title="Time spent">
-                    <x-heroicon-m-clock class="h-3.5 w-3.5" />
+                <span class="flex flex-shrink-0 items-center gap-1 whitespace-nowrap" title="Time spent">
+                    <x-heroicon-m-clock class="h-3.5 w-3.5 flex-shrink-0" />
                     {{ Format::seconds($task->total_seconds_spent) }}
                     @if ($isRunning)
                         <span
@@ -80,43 +88,31 @@
                     @endif
                 </span>
             @endif
+            <span class="ml-auto flex min-w-0 items-center gap-1" title="Project">
+                <span class="inline-block h-2 w-2 flex-shrink-0 rounded-full" style="background-color: {{ $t['dot'] }};"></span>
+                <span class="truncate">{{ $projectName }}</span>
+            </span>
         </div>
-    @endif
 
-    {{-- Subtasks --}}
+    {{-- Footer: subtasks --}}
     @if ($task->subTasks->isNotEmpty())
-        <div class="mt-1.5 space-y-0.5">
+        <div
+            class="mt-2 space-y-1 pt-2"
+            style="border-top: 1px dashed {{ $t['dot'] }}66;"
+        >
             @foreach ($task->subTasks as $subTask)
-                <label class="flex items-center gap-1.5 text-[11px]">
+                {{-- Row click opens the detail modal (bubbles to the card); only the checkbox toggles. --}}
+                <div class="flex items-center gap-1.5 text-[11px]">
                     <input
                         type="checkbox"
                         @checked($subTask->finished)
-                        wire:click="toggleSubtask({{ $subTask->id }})"
-                        class="h-3 w-3 rounded border-gray-400/60 text-primary-600"
+                        wire:click.stop="toggleSubtask({{ $subTask->id }})"
+                        class="h-3.5 w-3.5 flex-shrink-0 rounded border-gray-400/60"
                         style="accent-color: {{ $t['dot'] }};"
                     />
-                    <span @class(['truncate', 'line-through opacity-50' => $subTask->finished])>{{ $subTask->name }}</span>
-                </label>
+                    <span @class(['cursor-pointer truncate', 'line-through opacity-50' => $subTask->finished])>{{ $subTask->name }}</span>
+                </div>
             @endforeach
         </div>
     @endif
-
-    {{-- Footer: project + start timer --}}
-    <div class="mt-1.5 flex items-center justify-between text-[11px] opacity-70">
-        <span class="flex min-w-0 items-center gap-1">
-            <span class="inline-block h-2 w-2 flex-shrink-0 rounded-full" style="background-color: {{ $t['dot'] }};"></span>
-            <span class="truncate">{{ $projectName }}</span>
-        </span>
-        @unless ($isRunning)
-            <button
-                type="button"
-                wire:click="$dispatch('start-pomodoro', { taskId: {{ $task->id }} })"
-                class="flex items-center gap-0.5 rounded px-1 py-0.5 hover:bg-white/50 hover:text-gray-900"
-                title="Start Pomodoro"
-            >
-                <x-heroicon-m-play class="h-3.5 w-3.5" />
-                Start
-            </button>
-        @endunless
-    </div>
 </div>

@@ -73,6 +73,7 @@
                             'tint' => $tint,
                             'runningTaskId' => $runningTaskId,
                             'runningStartedAt' => $runningStartedAt,
+                            'selectedTaskId' => $this->viewingTaskId,
                         ])
                     @endforeach
                 </div>
@@ -96,8 +97,8 @@
             wire:click.self="closeTaskModal"
         >
             <div
-                class="w-full max-w-md bg-white p-5 dark:bg-gray-900"
-                style="border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);"
+                class="w-full max-w-md bg-white dark:bg-gray-900"
+                style="border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); padding: 1.25rem;"
             >
                 <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
                     {{ $editingTaskId ? 'Edit task' : 'New task' }}
@@ -115,15 +116,25 @@
                     </div>
 
                     <div>
-                        <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Project</label>
-                        <select
-                            wire:model="taskForm.color"
-                            class="w-full rounded-lg border-gray-300 text-sm shadow-sm dark:bg-gray-800 dark:border-gray-700"
-                        >
+                        <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Color</label>
+                        <div class="flex flex-wrap gap-2">
                             @foreach ($this->getProjects() as $project)
-                                <option value="{{ $project->color }}">{{ $project->name }}</option>
+                                @php
+                                    $pt = $tint($project->color);
+                                    $isSelected = $taskForm['color'] === $project->color;
+                                @endphp
+                                <button
+                                    type="button"
+                                    wire:click="$set('taskForm.color', '{{ $project->color }}')"
+                                    title="{{ $project->name }}"
+                                    class="flex items-center gap-1.5 text-xs transition"
+                                    style="padding: 4px 9px; border-radius: 9999px; border: 2px solid {{ $isSelected ? $pt['dot'] : '#e5e7eb' }}; background-color: {{ $isSelected ? $pt['bg'] : 'transparent' }}; color: {{ $isSelected ? $pt['text'] : '#6b7280' }};"
+                                >
+                                    <span class="inline-block h-3 w-3 flex-shrink-0 rounded-full" style="background-color: {{ $pt['dot'] }};"></span>
+                                    {{ $project->name }}
+                                </button>
                             @endforeach
-                        </select>
+                        </div>
                         @error('taskForm.color') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
 
