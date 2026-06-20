@@ -200,6 +200,79 @@ it('stops the previous timer when a new one starts', function () {
         ->and($task->fresh()->total_seconds_spent)->toBe(600);
 });
 
+it('keeps the countdown when switching tasks mid-pomodoro', function () {
+    $task = pomodoroTask();
+    $other = Task::create([
+        'name' => 'Second task',
+        'color' => 'red',
+        'board_column_id' => $task->board_column_id,
+        'position' => 1,
+        'date' => today(),
+        'total_seconds_spent' => 0,
+    ]);
+
+    Carbon::setTestNow('2026-06-02 10:00:00');
+    $component = Livewire::test(PomodoroTimer::class)->call('start', $task->id);
+
+    // 9 seconds elapsed (the screenshot's 24:51) before switching tasks.
+    Carbon::setTestNow('2026-06-02 10:00:09');
+    $component->call('setOpenTask', $other->id, $other->name)
+        ->call('switchToOpenTask')
+        ->assertSet('runningTaskId', $other->id)
+        // The countdown anchor stays at the original start, not "now".
+        ->assertSet('runningStartedAt', Carbon::parse('2026-06-02 10:00:00')->toIso8601String());
+
+    // The old task is credited the 9s worked on it; the new entry carries the
+    // block anchor so its countdown continues from 24:51.
+    $new = TimeEntry::whereNull('ended_at')->sole();
+    expect($new->task_id)->toBe($other->id)
+        ->and($new->started_at->toIso8601String())->toBe(Carbon::parse('2026-06-02 10:00:09')->toIso8601String())
+        ->and($new->pomodoro_started_at->toIso8601String())->toBe(Carbon::parse('2026-06-02 10:00:00')->toIso8601String());
+});
+
+it('treats a switched pomodoro that runs the full interval as finished', function () {
+    $task = pomodoroTask();
+    $other = Task::create([
+        'name' => 'Second task',
+        'color' => 'red',
+        'board_column_id' => $task->board_column_id,
+        'position' => 1,
+        'date' => today(),
+        'total_seconds_spent' => 0,
+    ]);
+
+    Carbon::setTestNow('2026-06-02 10:00:00');
+    $component = Livewire::test(PomodoroTimer::class)->call('start', $task->id);
+
+    // Switch 5 minutes in, then let the block run out its full 25 minutes.
+    Carbon::setTestNow('2026-06-02 10:05:00');
+    $component->call('setOpenTask', $other->id, $other->name)->call('switchToOpenTask');
+
+    Carbon::setTestNow('2026-06-02 10:25:00');
+    // The new entry is only 20 min long, but the block hit 0:00 — no prompt.
+    $component->call('stop')->assertSet('showStopReasons', false);
+
+    expect(TimeEntry::whereNull('ended_at')->count())->toBe(0)
+        ->and($task->fresh()->total_seconds_spent)->toBe(300)   // 10:00–10:05
+        ->and($other->fresh()->total_seconds_spent)->toBe(1200); // 10:05–10:25
+});
+
+it('resumes a carried countdown anchor on mount', function () {
+    $task = pomodoroTask();
+    $entry = TimeEntry::create([
+        'task_id' => $task->id,
+        'type' => 'pomodoro',
+        'started_at' => now()->subMinute(),
+        'pomodoro_started_at' => now()->subMinutes(10),
+        'ended_at' => null,
+        'seconds' => 0,
+    ]);
+
+    Livewire::test(PomodoroTimer::class)
+        ->assertSet('runningEntryId', $entry->id)
+        ->assertSet('runningStartedAt', $entry->pomodoro_started_at->toIso8601String());
+});
+
 it('resumes a running entry on mount so a reload keeps the timer', function () {
     $task = pomodoroTask();
     $entry = TimeEntry::create([

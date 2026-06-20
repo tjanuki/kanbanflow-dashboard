@@ -15,6 +15,7 @@ class TimeEntry extends Model
         'task_id',
         'type',
         'started_at',
+        'pomodoro_started_at',
         'ended_at',
         'seconds',
         'reason',
@@ -22,6 +23,7 @@ class TimeEntry extends Model
 
     protected $casts = [
         'started_at' => 'datetime',
+        'pomodoro_started_at' => 'datetime',
         'ended_at' => 'datetime',
     ];
 

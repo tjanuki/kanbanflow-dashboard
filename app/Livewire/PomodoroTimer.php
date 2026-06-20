@@ -99,7 +99,9 @@ class PomodoroTimer extends Component
         $this->runningEntryId = $entry->id;
         $this->runningTaskId = $entry->task_id;
         $this->runningTaskName = $entry->task?->name;
-        $this->runningStartedAt = $entry->started_at->toIso8601String();
+        // Resume the countdown from the block's anchor (set when the timer was
+        // carried onto this task), falling back to the entry's own start.
+        $this->runningStartedAt = ($entry->pomodoro_started_at ?? $entry->started_at)->toIso8601String();
 
         // Reflect the running session's kind so the display counts the right way.
         if (in_array($entry->type, ['pomodoro', 'stopwatch'], true)) {
@@ -110,6 +112,16 @@ class PomodoroTimer extends Component
     #[On('start-pomodoro')]
     public function start(int $taskId): void
     {
+        $this->beginEntry($taskId);
+    }
+
+    /**
+     * Open a running entry for the task. A fresh start anchors the countdown to
+     * "now"; a task switch passes $countdownStart so the same pomodoro block
+     * keeps ticking onto the new task instead of resetting to 25:00.
+     */
+    private function beginEntry(int $taskId, ?Carbon $countdownStart = null): void
+    {
         // Only one timer runs at a time — close any open entry first. Switching
         // tasks is intentional, so we log it straight away without prompting.
         if ($this->runningEntryId) {
@@ -118,10 +130,15 @@ class PomodoroTimer extends Component
 
         $task = Task::findOrFail($taskId);
 
+        $startedAt = now();
+
         $entry = TimeEntry::create([
             'task_id' => $task->id,
             'type' => $this->mode,
-            'started_at' => now(),
+            'started_at' => $startedAt,
+            // Null on a fresh start (countdown = started_at); a carried anchor
+            // when continuing a block onto a different task.
+            'pomodoro_started_at' => $countdownStart,
             'ended_at' => null,
             'seconds' => 0,
         ]);
@@ -129,7 +146,7 @@ class PomodoroTimer extends Component
         $this->runningEntryId = $entry->id;
         $this->runningTaskId = $task->id;
         $this->runningTaskName = $task->name;
-        $this->runningStartedAt = $entry->started_at->toIso8601String();
+        $this->runningStartedAt = ($countdownStart ?? $startedAt)->toIso8601String();
         $this->showPanel = true;
         $this->alert = null;
 
@@ -168,9 +185,13 @@ class PomodoroTimer extends Component
 
         $seconds = (int) $entry->started_at->diffInSeconds(now());
 
+        // The countdown is measured from the block's anchor, which predates
+        // started_at when the timer was carried onto this task mid-block.
+        $blockSeconds = (int) ($entry->pomodoro_started_at ?? $entry->started_at)->diffInSeconds(now());
+
         // Under 15s gets discarded; a pomodoro that already ran its full work
         // interval finished on its own. Neither needs an explanation.
-        if ($seconds < 15 || ($this->mode === 'pomodoro' && $seconds >= $this->workSeconds)) {
+        if ($seconds < 15 || ($this->mode === 'pomodoro' && $blockSeconds >= $this->workSeconds)) {
             $this->finalizeRunningEntry();
 
             return;
@@ -301,9 +322,16 @@ class PomodoroTimer extends Component
     /** Move the running timer onto the task whose modal is open. */
     public function switchToOpenTask(): void
     {
-        if ($this->openTaskId) {
-            $this->start($this->openTaskId);
+        if (! $this->openTaskId || ! $this->runningEntryId) {
+            return;
         }
+
+        // Continue the same pomodoro block on the new task: carry the current
+        // countdown anchor so the display keeps ticking instead of resetting.
+        $current = TimeEntry::find($this->runningEntryId);
+        $anchor = $current?->pomodoro_started_at ?? $current?->started_at;
+
+        $this->beginEntry($this->openTaskId, $anchor);
     }
 
     /** Switch between Pomodoro (count down) and Stopwatch (count up). */
