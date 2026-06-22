@@ -28,6 +28,7 @@
     data-task-id="{{ $task->id }}"
     wire:key="task-{{ $task->id }}"
     wire:click="viewTask({{ $task->id }})"
+    @contextmenu.prevent="$dispatch('open-task-menu', { id: {{ $task->id }}, x: $event.clientX, y: $event.clientY })"
     @class([
         'group relative cursor-grab rounded-md text-[13px] shadow-sm transition active:cursor-grabbing',
         'border border-transparent' => ! $isRunning,

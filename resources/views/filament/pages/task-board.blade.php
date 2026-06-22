@@ -20,6 +20,23 @@
         $runningStartedAt = $runningEntry?->started_at?->toIso8601String();
     @endphp
 
+    <div
+        x-data="{
+            taskId: null,
+            x: 0,
+            y: 0,
+            submenu: false,
+            open(e) {
+                this.taskId = e.detail.id;
+                this.submenu = false;
+                const w = 208, h = 240;
+                this.x = Math.min(e.detail.x, window.innerWidth - w - 8);
+                this.y = Math.min(e.detail.y, window.innerHeight - h - 8);
+            },
+            close() { this.taskId = null; this.submenu = false; },
+        }"
+        @open-task-menu.window="open($event)"
+    >
     <div class="flex gap-px overflow-x-auto pb-4">
         @foreach ($this->getBoardColumns() as $column)
             @php $isDay = $column->type === 'day'; @endphp
@@ -79,6 +96,80 @@
                 </div>
             </div>
         @endforeach
+    </div>
+
+    {{-- Right-click context menu (shared by every card; teleported coords set on open) --}}
+    <div
+        x-show="taskId !== null"
+        @click.outside="close()"
+        @keydown.escape.window="close()"
+        x-transition.opacity.duration.100ms
+        class="fixed w-52 rounded-lg border border-gray-200 bg-white py-1 shadow-xl dark:border-gray-700 dark:bg-gray-900"
+        :style="`left: ${x}px; top: ${y}px; z-index: 9999;`"
+        style="display: none;"
+    >
+        {{-- Move (opens a submenu) --}}
+        <div class="relative" @mouseenter="submenu = true" @mouseleave="submenu = false">
+            <button
+                type="button"
+                class="flex w-full items-center gap-2 whitespace-nowrap px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+                <x-heroicon-m-arrows-pointing-out class="h-4 w-4 flex-shrink-0 opacity-70" />
+                <span class="flex-1">Move</span>
+                <x-heroicon-m-chevron-right class="h-4 w-4 flex-shrink-0 opacity-50" />
+            </button>
+            <div
+                x-show="submenu"
+                class="w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-xl dark:border-gray-700 dark:bg-gray-900"
+                style="display: none; position: absolute; left: 100%; top: -1px; margin-left: 4px; z-index: 9999;"
+            >
+                <button
+                    type="button"
+                    @click="$wire.moveTaskRight(taskId); close()"
+                    class="flex w-full items-center gap-2 whitespace-nowrap px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                    <x-heroicon-m-arrow-right class="h-4 w-4 flex-shrink-0 opacity-70" />
+                    Move right
+                </button>
+                <button
+                    type="button"
+                    @click="$wire.moveTaskToTop(taskId); close()"
+                    class="flex w-full items-center gap-2 whitespace-nowrap px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                    <x-heroicon-m-arrow-up class="h-4 w-4 flex-shrink-0 opacity-70" />
+                    Move to top
+                </button>
+                <button
+                    type="button"
+                    @click="$wire.moveTaskToBottom(taskId); close()"
+                    class="flex w-full items-center gap-2 whitespace-nowrap px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                    <x-heroicon-m-arrow-down class="h-4 w-4 flex-shrink-0 opacity-70" />
+                    Move to bottom
+                </button>
+            </div>
+        </div>
+
+        {{-- Copy here --}}
+        <button
+            type="button"
+            @click="$wire.copyTask(taskId); close()"
+            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+        >
+            <x-heroicon-m-document-duplicate class="h-4 w-4 flex-shrink-0 opacity-70" />
+            Copy here
+        </button>
+
+        {{-- Delete --}}
+        <button
+            type="button"
+            @click="if (window.confirm('Delete this task?')) { $wire.deleteTask(taskId) } close()"
+            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
+        >
+            <x-heroicon-m-trash class="h-4 w-4 flex-shrink-0 opacity-70" />
+            Delete
+        </button>
+    </div>
     </div>
 
     {{-- Read-only detail modal (sits above the edit form) --}}

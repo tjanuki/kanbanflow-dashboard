@@ -187,6 +187,117 @@ class TaskBoard extends Page
         });
     }
 
+    /** Context-menu "Move > Move right": shift the task into the next column. */
+    public function moveTaskRight(int $taskId): void
+    {
+        $task = Task::find($taskId);
+
+        if (! $task || ! $task->board_column_id) {
+            return;
+        }
+
+        $currentPosition = Column::whereKey($task->board_column_id)->value('position');
+
+        if ($currentPosition === null) {
+            return;
+        }
+
+        $nextColumn = Column::where('position', '>', $currentPosition)
+            ->orderBy('position')
+            ->first();
+
+        if (! $nextColumn) {
+            return;
+        }
+
+        $position = (int) Task::where('board_column_id', $nextColumn->id)->max('position');
+
+        $task->update([
+            'board_column_id' => $nextColumn->id,
+            'position' => $position + 1,
+        ]);
+    }
+
+    /** Context-menu "Move > Move to top": float the task above its column peers. */
+    public function moveTaskToTop(int $taskId): void
+    {
+        $this->reorderWithinColumn($taskId, 'top');
+    }
+
+    /** Context-menu "Move > Move to bottom": sink the task below its column peers. */
+    public function moveTaskToBottom(int $taskId): void
+    {
+        $this->reorderWithinColumn($taskId, 'bottom');
+    }
+
+    /** Renumber a task's column with that task pinned to the top or bottom. */
+    private function reorderWithinColumn(int $taskId, string $edge): void
+    {
+        $task = Task::find($taskId);
+
+        if (! $task || ! $task->board_column_id) {
+            return;
+        }
+
+        $ids = Task::where('board_column_id', $task->board_column_id)
+            ->orderBy('position')
+            ->pluck('id')
+            ->reject(fn ($id) => $id === $task->id)
+            ->values()
+            ->all();
+
+        if ($edge === 'top') {
+            array_unshift($ids, $task->id);
+        } else {
+            $ids[] = $task->id;
+        }
+
+        DB::transaction(function () use ($ids) {
+            foreach ($ids as $index => $id) {
+                Task::whereKey($id)->update(['position' => $index]);
+            }
+        });
+    }
+
+    /** Context-menu "Copy here": duplicate the task (and its subtasks) just below the original. */
+    public function copyTask(int $taskId): void
+    {
+        $task = Task::with('subTasks')->find($taskId);
+
+        if (! $task) {
+            return;
+        }
+
+        DB::transaction(function () use ($task) {
+            $copy = $task->replicate();
+            $copy->kanbanflow_task_id = null;
+            $copy->total_seconds_spent = 0;
+            $copy->save();
+
+            foreach ($task->subTasks as $subTask) {
+                SubTask::create([
+                    'task_id' => $copy->id,
+                    'name' => $subTask->name,
+                    'finished' => $subTask->finished,
+                ]);
+            }
+
+            // Renumber the column so the copy sits immediately after the original.
+            $ids = Task::where('board_column_id', $task->board_column_id)
+                ->where('id', '!=', $copy->id)
+                ->orderBy('position')
+                ->pluck('id')
+                ->all();
+
+            $insertAt = array_search($task->id, $ids, true);
+            array_splice($ids, $insertAt === false ? count($ids) : $insertAt + 1, 0, [$copy->id]);
+
+            foreach ($ids as $index => $id) {
+                Task::whereKey($id)->update(['position' => $index]);
+            }
+        });
+    }
+
     public function newTask(int $columnId): void
     {
         $this->resetValidation();
