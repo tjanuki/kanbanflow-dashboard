@@ -306,6 +306,14 @@
 
     @assets
         <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+        <style>
+            @keyframes taskBlink {
+                0% { opacity: 1; }
+                50% { opacity: 0.2; }
+                100% { opacity: 1; }
+            }
+            .task-blink { animation: taskBlink 0.35s ease-in-out 0.4s 2; }
+        </style>
     @endassets
 
     @script
@@ -344,6 +352,28 @@
 
         // Re-bind after Livewire DOM updates (scoped to this page's columns).
         Livewire.hook('morphed', () => initSortables());
+
+        // Blink the copied card twice once the board re-renders with it.
+        Livewire.on('task-copied', (event) => {
+            const id = Array.isArray(event) ? event[0]?.id : event?.id;
+            if (id == null) {
+                return;
+            }
+
+            let tries = 0;
+            const blink = () => {
+                const el = root.querySelector(`[data-task-id="${id}"]`);
+                if (el) {
+                    el.classList.remove('task-blink');
+                    void el.offsetWidth; // restart the animation if it's still applied
+                    el.classList.add('task-blink');
+                    el.addEventListener('animationend', () => el.classList.remove('task-blink'), { once: true });
+                } else if (tries++ < 10) {
+                    requestAnimationFrame(blink);
+                }
+            };
+            requestAnimationFrame(blink);
+        });
     </script>
     @endscript
 </x-filament-panels::page>

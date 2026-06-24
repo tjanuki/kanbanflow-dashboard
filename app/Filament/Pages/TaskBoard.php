@@ -268,11 +268,14 @@ class TaskBoard extends Page
             return;
         }
 
-        DB::transaction(function () use ($task) {
+        $copyId = null;
+
+        DB::transaction(function () use ($task, &$copyId) {
             $copy = $task->replicate();
             $copy->kanbanflow_task_id = null;
             $copy->total_seconds_spent = 0;
             $copy->save();
+            $copyId = $copy->id;
 
             foreach ($task->subTasks as $subTask) {
                 SubTask::create([
@@ -296,6 +299,9 @@ class TaskBoard extends Page
                 Task::whereKey($id)->update(['position' => $index]);
             }
         });
+
+        // Let the board blink the freshly created copy once it re-renders.
+        $this->dispatch('task-copied', id: $copyId);
     }
 
     public function newTask(int $columnId): void
