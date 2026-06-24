@@ -153,7 +153,7 @@
         {{-- Copy here --}}
         <button
             type="button"
-            @click="$wire.copyTask(taskId); close()"
+            @click="window.captureTaskBoardPositions?.(); $wire.copyTask(taskId); close()"
             class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
         >
             <x-heroicon-m-document-duplicate class="h-4 w-4 flex-shrink-0 opacity-70" />
@@ -312,7 +312,13 @@
                 50% { opacity: 0.2; }
                 100% { opacity: 1; }
             }
+            @keyframes taskAppear {
+                from { opacity: 0; transform: translateY(-8px); }
+                to   { opacity: 1; transform: translateY(0); }
+            }
             .task-blink { animation: taskBlink 0.35s ease-in-out 0.4s 2; }
+            /* Freshly copied card: fade/slide in, then flash twice. */
+            .task-copied-in { animation: taskAppear 0.28s ease-out, taskBlink 0.35s ease-in-out 0.35s 2; }
         </style>
     @endassets
 
@@ -350,10 +356,52 @@
         const ready = () => window.Sortable ? initSortables() : setTimeout(ready, 50);
         ready();
 
-        // Re-bind after Livewire DOM updates (scoped to this page's columns).
-        Livewire.hook('morphed', () => initSortables());
+        // Snapshot card positions just before "Copy here" sends its request, so the
+        // cards displaced by the new copy can slide (FLIP) to their new spots.
+        let flipTops = null;
+        window.captureTaskBoardPositions = () => {
+            flipTops = new Map();
+            root.querySelectorAll('[data-task-id]').forEach((el) => {
+                flipTops.set(el.dataset.taskId, el.getBoundingClientRect().top);
+            });
+        };
 
-        // Blink the copied card twice once the board re-renders with it.
+        const runFlip = () => {
+            if (! flipTops) {
+                return;
+            }
+            const prev = flipTops;
+            flipTops = null;
+
+            root.querySelectorAll('[data-task-id]').forEach((el) => {
+                const oldTop = prev.get(el.dataset.taskId);
+                if (oldTop === undefined) {
+                    return; // newly inserted card — handled by the fade-in animation
+                }
+                const delta = oldTop - el.getBoundingClientRect().top;
+                if (! delta) {
+                    return;
+                }
+                el.style.transition = 'none';
+                el.style.transform = `translateY(${delta}px)`;
+                requestAnimationFrame(() => {
+                    el.style.transition = 'transform 0.3s ease';
+                    el.style.transform = '';
+                    el.addEventListener('transitionend', () => {
+                        el.style.transition = '';
+                        el.style.transform = '';
+                    }, { once: true });
+                });
+            });
+        };
+
+        // Re-bind after Livewire DOM updates (scoped to this page's columns).
+        Livewire.hook('morphed', () => {
+            initSortables();
+            runFlip();
+        });
+
+        // Fade the copied card in and flash it twice once the board re-renders with it.
         Livewire.on('task-copied', (event) => {
             const id = Array.isArray(event) ? event[0]?.id : event?.id;
             if (id == null) {
@@ -361,18 +409,18 @@
             }
 
             let tries = 0;
-            const blink = () => {
+            const animate = () => {
                 const el = root.querySelector(`[data-task-id="${id}"]`);
                 if (el) {
-                    el.classList.remove('task-blink');
+                    el.classList.remove('task-copied-in');
                     void el.offsetWidth; // restart the animation if it's still applied
-                    el.classList.add('task-blink');
-                    el.addEventListener('animationend', () => el.classList.remove('task-blink'), { once: true });
+                    el.classList.add('task-copied-in');
+                    el.addEventListener('animationend', () => el.classList.remove('task-copied-in'), { once: true });
                 } else if (tries++ < 10) {
-                    requestAnimationFrame(blink);
+                    requestAnimationFrame(animate);
                 }
             };
-            requestAnimationFrame(blink);
+            requestAnimationFrame(animate);
         });
     </script>
     @endscript
