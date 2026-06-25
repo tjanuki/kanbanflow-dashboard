@@ -26,6 +26,7 @@
             x: 0,
             y: 0,
             submenu: false,
+            submenuTimer: null,
             open(e) {
                 this.taskId = e.detail.id;
                 this.submenu = false;
@@ -33,7 +34,9 @@
                 this.x = Math.min(e.detail.x, window.innerWidth - w - 8);
                 this.y = Math.min(e.detail.y, window.innerHeight - h - 8);
             },
-            close() { this.taskId = null; this.submenu = false; },
+            openSubmenu() { clearTimeout(this.submenuTimer); this.submenu = true; },
+            closeSubmenu() { this.submenuTimer = setTimeout(() => { this.submenu = false; }, 220); },
+            close() { clearTimeout(this.submenuTimer); this.taskId = null; this.submenu = false; },
         }"
         @open-task-menu.window="open($event)"
     >
@@ -104,29 +107,44 @@
         @click.outside="close()"
         @keydown.escape.window="close()"
         x-transition.opacity.duration.100ms
-        class="fixed w-52 rounded-lg border border-gray-200 bg-white py-1 shadow-xl dark:border-gray-700 dark:bg-gray-900"
-        :style="`left: ${x}px; top: ${y}px; z-index: 9999;`"
+        class="fixed w-52 border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
+        :style="`left: ${x}px; top: ${y}px; z-index: 9999; border-radius: 12px; padding: 4px; box-shadow: 0 12px 32px -8px rgba(0,0,0,0.30), 0 0 0 1px rgba(0,0,0,0.04);`"
         style="display: none;"
     >
         {{-- Move (opens a submenu) --}}
-        <div class="relative" @mouseenter="submenu = true" @mouseleave="submenu = false">
+        <div class="relative" @mouseenter="openSubmenu()" @mouseleave="closeSubmenu()">
             <button
                 type="button"
-                class="flex w-full items-center gap-2 whitespace-nowrap px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                @click="submenu ? closeSubmenu() : openSubmenu()"
+                class="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                :class="submenu && 'bg-gray-100 dark:bg-gray-800'"
+                style="border-radius: 8px;"
             >
                 <x-heroicon-m-arrows-pointing-out class="h-4 w-4 flex-shrink-0 opacity-70" />
                 <span class="flex-1">Move</span>
                 <x-heroicon-m-chevron-right class="h-4 w-4 flex-shrink-0 opacity-50" />
             </button>
+
+            {{-- Invisible bridge so the cursor can cross the gap without closing the submenu --}}
             <div
                 x-show="submenu"
-                class="w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-xl dark:border-gray-700 dark:bg-gray-900"
-                style="display: none; position: absolute; left: 100%; top: -1px; margin-left: 4px; z-index: 9999;"
+                @mouseenter="openSubmenu()"
+                style="display: none; position: absolute; left: 100%; top: 0; width: 12px; height: 100%; z-index: 9999;"
+            ></div>
+
+            <div
+                x-show="submenu"
+                @mouseenter="openSubmenu()"
+                @mouseleave="closeSubmenu()"
+                x-transition.opacity.duration.100ms
+                class="w-44 border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
+                style="display: none; position: absolute; left: 100%; top: -4px; margin-left: 8px; z-index: 9999; border-radius: 12px; padding: 4px; box-shadow: 0 12px 32px -8px rgba(0,0,0,0.30), 0 0 0 1px rgba(0,0,0,0.04);"
             >
                 <button
                     type="button"
                     @click="$wire.moveTaskRight(taskId); close()"
-                    class="flex w-full items-center gap-2 whitespace-nowrap px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                    class="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                    style="border-radius: 8px;"
                 >
                     <x-heroicon-m-arrow-right class="h-4 w-4 flex-shrink-0 opacity-70" />
                     Move right
@@ -134,7 +152,8 @@
                 <button
                     type="button"
                     @click="$wire.moveTaskToTop(taskId); close()"
-                    class="flex w-full items-center gap-2 whitespace-nowrap px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                    class="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                    style="border-radius: 8px;"
                 >
                     <x-heroicon-m-arrow-up class="h-4 w-4 flex-shrink-0 opacity-70" />
                     Move to top
@@ -142,7 +161,8 @@
                 <button
                     type="button"
                     @click="$wire.moveTaskToBottom(taskId); close()"
-                    class="flex w-full items-center gap-2 whitespace-nowrap px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                    class="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                    style="border-radius: 8px;"
                 >
                     <x-heroicon-m-arrow-down class="h-4 w-4 flex-shrink-0 opacity-70" />
                     Move to bottom
@@ -153,18 +173,25 @@
         {{-- Copy here --}}
         <button
             type="button"
+            @mouseenter="closeSubmenu()"
             @click="window.captureTaskBoardPositions?.(); $wire.copyTask(taskId); close()"
-            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+            style="border-radius: 8px;"
         >
             <x-heroicon-m-document-duplicate class="h-4 w-4 flex-shrink-0 opacity-70" />
             Copy here
         </button>
 
+        {{-- Divider --}}
+        <div class="my-1 border-t border-gray-100 dark:border-gray-800"></div>
+
         {{-- Delete --}}
         <button
             type="button"
+            @mouseenter="closeSubmenu()"
             @click="if (window.confirm('Delete this task?')) { $wire.deleteTask(taskId) } close()"
-            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
+            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
+            style="border-radius: 8px;"
         >
             <x-heroicon-m-trash class="h-4 w-4 flex-shrink-0 opacity-70" />
             Delete
