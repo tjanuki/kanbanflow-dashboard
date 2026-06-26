@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->dontReport([
             \Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException::class,
+            \Livewire\Exceptions\ComponentNotFoundException::class,
         ]);
 
         $exceptions->reportable(function (\TypeError $e) {
