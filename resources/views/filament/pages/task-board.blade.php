@@ -43,11 +43,14 @@
     <div class="flex gap-px overflow-x-auto pb-4">
         @foreach ($this->getBoardColumns() as $column)
             @php $isDay = $column->type === 'day'; @endphp
-            <div @class([
-                'flex w-64 flex-shrink-0 flex-col',
-                'rounded-xl bg-gray-100 dark:bg-gray-800/60' => ! $isDay,
-                'border-l border-gray-200 dark:border-gray-700' => $isDay && ! $loop->first,
-            ])>
+            <div
+                @class([
+                    'flex flex-col',
+                    'rounded-xl bg-gray-100 dark:bg-gray-800/60' => ! $isDay,
+                    'border-l border-gray-200 dark:border-gray-700' => $isDay && ! $loop->first,
+                ])
+                style="width: 16rem; min-width: 16rem; flex: none;"
+            >
                 {{-- Column header --}}
                 <div @class([
                     'sticky top-0 z-10 flex items-center justify-between px-3 py-2',
