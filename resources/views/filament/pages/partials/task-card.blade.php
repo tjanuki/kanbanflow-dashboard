@@ -51,8 +51,7 @@
         </span>
         <button
             type="button"
-            wire:click.stop="deleteTask({{ $task->id }})"
-            wire:confirm="Delete this task?"
+            @click.stop="$dispatch('confirm-delete-task', { id: {{ $task->id }} })"
             class="-mr-1 mt-0.5 text-gray-500/70 opacity-0 transition group-hover:opacity-100 hover:text-red-600"
             title="Delete task"
         >

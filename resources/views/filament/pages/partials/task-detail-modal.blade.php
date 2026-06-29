@@ -155,8 +155,7 @@
             {{-- Delete --}}
             <button
                 type="button"
-                wire:click="deleteTask({{ $task->id }})"
-                wire:confirm="Delete this task?"
+                @click="$dispatch('confirm-delete-task', { id: {{ $task->id }} })"
                 class="{{ $railBtn }} hover:!bg-red-100 hover:!text-red-600"
                 title="Delete"
             >

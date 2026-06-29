@@ -192,7 +192,7 @@
         <button
             type="button"
             @mouseenter="closeSubmenu()"
-            @click="if (window.confirm('Delete this task?')) { $wire.deleteTask(taskId) } close()"
+            @click="$dispatch('confirm-delete-task', { id: taskId }); close()"
             class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
             style="border-radius: 8px;"
         >
@@ -319,8 +319,7 @@
                         @if ($editingTaskId)
                             <button
                                 type="button"
-                                wire:click="deleteTask({{ $editingTaskId }})"
-                                wire:confirm="Delete this task?"
+                                @click="$dispatch('confirm-delete-task', { id: {{ $editingTaskId }} })"
                                 class="text-sm text-red-600 hover:underline"
                             >Delete</button>
                         @endif
@@ -334,9 +333,59 @@
         </div>
     @endif
 
+    {{-- Custom delete confirmation dialog (replaces the native browser confirm) --}}
+    <div
+        x-data="{
+            show: false,
+            taskId: null,
+            open(e) { this.taskId = e.detail.id; this.show = true; $nextTick(() => $refs.confirmBtn?.focus()); },
+            confirm() { if (this.taskId !== null) { $wire.deleteTask(this.taskId); } this.cancel(); },
+            cancel() { this.show = false; this.taskId = null; },
+        }"
+        @confirm-delete-task.window="open($event)"
+        @keydown.escape.window="show && cancel()"
+    >
+        <div
+            x-show="show"
+            x-cloak
+            x-transition.opacity.duration.150ms
+            class="fixed inset-0 flex items-center justify-center p-4"
+            style="z-index: 80; background-color: rgba(0, 0, 0, 0.45);"
+            @click.self="cancel()"
+        >
+            <div
+                class="w-full max-w-sm bg-white dark:bg-gray-900"
+                style="border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); padding: 1.25rem;"
+                @click.stop
+            >
+                <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Delete task</h2>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                    Are you sure you want to delete this task? This action cannot be undone.
+                </p>
+                <div class="mt-5 flex justify-end gap-2">
+                    <button
+                        type="button"
+                        @click="cancel()"
+                        class="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >Cancel</button>
+                    <button
+                        type="button"
+                        x-ref="confirmBtn"
+                        @click="confirm()"
+                        class="rounded-lg px-4 py-2 text-sm font-medium text-white"
+                        style="background-color: #dc2626;"
+                        @mouseenter="$el.style.backgroundColor = '#ef4444'"
+                        @mouseleave="$el.style.backgroundColor = '#dc2626'"
+                    >Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     @assets
         <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
         <style>
+            [x-cloak] { display: none !important; }
             @keyframes taskBlink {
                 0% { opacity: 1; }
                 50% { opacity: 0.2; }
