@@ -77,6 +77,21 @@ class PomodoroTimer extends Component
     /** Validation message surfaced inside the Add-time modal. */
     public ?string $manualError = null;
 
+    /** When true, the "Edit color" dialog is showing. */
+    public bool $showColorEditor = false;
+
+    /** Row being edited: null = none, 0 = adding a new colour, >0 = project id. */
+    public ?int $editColorId = null;
+
+    /** Bound to the colour-row label field. */
+    public string $editColorName = '';
+
+    /** Bound to the colour-row swatch picker (a palette key). */
+    public string $editColorSwatch = '';
+
+    /** Validation message surfaced inside the Edit-color dialog. */
+    public ?string $colorEditorError = null;
+
     public function mount(): void
     {
         $this->loadRunningEntry();
@@ -547,6 +562,131 @@ class PomodoroTimer extends Component
             ->where('type', 'pomodoro')
             ->whereNotNull('ended_at')
             ->count();
+    }
+
+    // --- "Edit color" dialog (manages the Project colour list) ------------
+
+    /** Projects shown in the Edit-color dialog, with their in-use task counts. */
+    #[Computed]
+    public function colorRows(): Collection
+    {
+        return \App\Models\Project::withCount('tasks')->orderBy('name')->get();
+    }
+
+    public function openColorEditor(): void
+    {
+        $this->showColorEditor = true;
+        $this->cancelColorRow();
+    }
+
+    public function closeColorEditor(): void
+    {
+        $this->showColorEditor = false;
+        $this->cancelColorRow();
+    }
+
+    /** Discard any in-progress add/edit and clear the buffer. */
+    public function cancelColorRow(): void
+    {
+        $this->editColorId = null;
+        $this->editColorName = '';
+        $this->editColorSwatch = '';
+        $this->colorEditorError = null;
+    }
+
+    /** Begin adding a new colour, pre-selecting the first unused swatch. */
+    public function startAddColor(): void
+    {
+        $used = \App\Models\Project::pluck('color')->all();
+
+        $this->editColorId = 0;
+        $this->editColorName = '';
+        $this->editColorSwatch = collect(\App\Support\Palette::keys())
+            ->first(fn ($key) => ! in_array($key, $used, true)) ?? '';
+        $this->colorEditorError = null;
+    }
+
+    /** Begin editing an existing colour row. */
+    public function startEditColor(int $id): void
+    {
+        $project = \App\Models\Project::find($id);
+
+        if (! $project) {
+            return;
+        }
+
+        $this->editColorId = $project->id;
+        $this->editColorName = $project->name;
+        $this->editColorSwatch = $project->color;
+        $this->colorEditorError = null;
+    }
+
+    /** Persist the add/edit currently in the buffer. */
+    public function saveColorRow(): void
+    {
+        $name = trim($this->editColorName);
+
+        if ($name === '') {
+            $this->colorEditorError = 'Enter a name.';
+
+            return;
+        }
+
+        if (! \App\Support\Palette::has($this->editColorSwatch)) {
+            $this->colorEditorError = 'Pick a color.';
+
+            return;
+        }
+
+        // The swatch doubles as the task ⇄ project join key, so it must be
+        // unique across the other colours.
+        $taken = \App\Models\Project::where('color', $this->editColorSwatch)
+            ->when($this->editColorId, fn ($query) => $query->where('id', '!=', $this->editColorId))
+            ->exists();
+
+        if ($taken) {
+            $this->colorEditorError = 'That swatch is already used by another color.';
+
+            return;
+        }
+
+        if (! $this->editColorId) {
+            \App\Models\Project::create([
+                'name' => $name,
+                'color' => $this->editColorSwatch,
+                'is_default' => false,
+            ]);
+        } else {
+            $project = \App\Models\Project::findOrFail($this->editColorId);
+
+            \Illuminate\Support\Facades\DB::transaction(function () use ($project, $name) {
+                // Re-point existing tasks so they stay attached when recolouring.
+                if ($project->color !== $this->editColorSwatch) {
+                    Task::where('color', $project->color)->update(['color' => $this->editColorSwatch]);
+                }
+
+                $project->update(['name' => $name, 'color' => $this->editColorSwatch]);
+            });
+        }
+
+        $this->cancelColorRow();
+        $this->dispatch('projects-updated');
+    }
+
+    /**
+     * Delete a colour row. Tasks keep their colour string, so they still render
+     * the correct swatch via the static palette — only their project label is
+     * lost (falls back to the raw colour name).
+     */
+    public function deleteColorRow(int $id): void
+    {
+        \App\Models\Project::whereKey($id)->delete();
+
+        if ($this->editColorId === $id) {
+            $this->cancelColorRow();
+        }
+
+        $this->dispatch('projects-updated');
     }
 
     public function render(): View

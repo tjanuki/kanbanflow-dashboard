@@ -59,6 +59,16 @@ class TaskBoard extends Page
     }
 
     /**
+     * Re-render when the colour list changes in the timer's "Edit color"
+     * dialog, so the detail-modal selector and edit-form pills stay current.
+     */
+    #[On('projects-updated')]
+    public function refreshProjects(): void
+    {
+        // Empty body — the re-render alone refreshes getProjects().
+    }
+
+    /**
      * Columns with their ordered tasks for rendering.
      */
     public function getBoardColumns()
@@ -156,6 +166,16 @@ class TaskBoard extends Page
             'board_column_id' => $columnId,
             'position' => $position + 1,
         ]);
+    }
+
+    /** Apply a colour to the task shown in the detail modal (stays open). */
+    public function setViewingTaskColor(string $color): void
+    {
+        if (! $this->viewingTaskId || ! \App\Support\Palette::has($color)) {
+            return;
+        }
+
+        Task::whereKey($this->viewingTaskId)->update(['color' => $color]);
     }
 
     /** Switch from the detail modal into the editable form. */

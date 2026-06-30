@@ -1,19 +1,8 @@
 <x-filament-panels::page>
     @php
         // KanbanFlow colour names -> stronger full-tint background / accent / text.
-        $palette = [
-            'white' => ['bg' => '#e5e7eb', 'dot' => '#9ca3af', 'text' => '#1f2937'],
-            'yellow' => ['bg' => '#fdeaa8', 'dot' => '#f59e0b', 'text' => '#1f2937'],
-            'green' => ['bg' => '#bbe8c8', 'dot' => '#22c55e', 'text' => '#1f2937'],
-            'blue' => ['bg' => '#bfe3fb', 'dot' => '#3b9fd6', 'text' => '#1f2937'],
-            'purple' => ['bg' => '#ddd6fe', 'dot' => '#8b5cf6', 'text' => '#1f2937'],
-            'red' => ['bg' => '#fbcaca', 'dot' => '#ef4444', 'text' => '#1f2937'],
-            'orange' => ['bg' => '#fdd9b5', 'dot' => '#f97316', 'text' => '#1f2937'],
-            'magenta' => ['bg' => '#f9cfe4', 'dot' => '#ec4899', 'text' => '#1f2937'],
-            'cyan' => ['bg' => '#aeebf2', 'dot' => '#06b6d4', 'text' => '#1f2937'],
-            'brown' => ['bg' => '#e0d4cd', 'dot' => '#8d6e63', 'text' => '#1f2937'],
-        ];
-        $tint = fn ($color) => $palette[$color] ?? ['bg' => '#e5e7eb', 'dot' => '#9ca3af', 'text' => '#1f2937'];
+        // Single source of truth lives in App\Support\Palette.
+        $tint = fn ($color) => \App\Support\Palette::tint($color);
 
         $runningEntry = $this->getRunningEntry();
         $runningTaskId = $runningEntry?->task_id;

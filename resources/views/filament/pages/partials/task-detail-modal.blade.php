@@ -41,9 +41,47 @@
             <dl class="mb-4 space-y-2.5 text-sm">
                 <div class="flex items-center gap-3">
                     <dt class="w-24 flex-shrink-0 text-gray-400">Color</dt>
-                    <dd class="flex items-center gap-2 text-gray-700 dark:text-gray-200">
-                        <span class="inline-block h-3 w-3 rounded-full" style="background-color: {{ $t['dot'] }};"></span>
-                        {{ $projectName }}
+                    <dd class="relative" x-data="{ open: false }">
+                        {{-- Trigger: dot + label, click to open the colour list. --}}
+                        <button
+                            type="button"
+                            x-on:click="open = ! open"
+                            class="flex items-center gap-2 rounded-md px-1.5 py-1 text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                        >
+                            <span class="inline-block h-3 w-3 flex-shrink-0 rounded-full" style="background-color: {{ $t['dot'] }};"></span>
+                            <span>{{ $projectName }}</span>
+                            <x-heroicon-m-chevron-up-down class="h-4 w-4 flex-shrink-0 text-gray-400" />
+                        </button>
+
+                        {{-- Colour list (inline-styled position/z-index/scroll: Filament
+                             panel CSS omits arbitrary z-[…]/max-h-[…] utilities). --}}
+                        <div
+                            x-show="open"
+                            x-on:click.outside="open = false"
+                            x-transition
+                            class="border border-gray-200 bg-white py-1 dark:border-gray-700 dark:bg-gray-900"
+                            style="display: none; position: absolute; left: 0; top: 100%; margin-top: 4px; z-index: 70; width: 14rem; max-height: 16rem; overflow-y: auto; border-radius: 0.5rem; box-shadow: 0 12px 32px -8px rgba(0,0,0,0.30), 0 0 0 1px rgba(0,0,0,0.04);"
+                        >
+                            @foreach ($this->getProjects() as $project)
+                                @php $selected = $project->color === $task->color; @endphp
+                                <button
+                                    type="button"
+                                    wire:click="setViewingTaskColor('{{ $project->color }}')"
+                                    x-on:click="open = false"
+                                    @class([
+                                        'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800',
+                                        'font-semibold text-gray-900 dark:text-gray-100' => $selected,
+                                        'text-gray-700 dark:text-gray-200' => ! $selected,
+                                    ])
+                                >
+                                    <span class="inline-block h-3 w-3 flex-shrink-0 rounded-full" style="background-color: {{ \App\Support\Palette::tint($project->color)['dot'] }};"></span>
+                                    <span class="flex-1 truncate">{{ $project->name }}</span>
+                                    @if ($selected)
+                                        <x-heroicon-m-check class="h-4 w-4 flex-shrink-0 text-primary-600" />
+                                    @endif
+                                </button>
+                            @endforeach
+                        </div>
                     </dd>
                 </div>
                 <div class="flex items-center gap-3">

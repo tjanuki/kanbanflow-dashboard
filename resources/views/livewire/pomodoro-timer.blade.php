@@ -276,11 +276,30 @@
                     <x-heroicon-m-queue-list class="h-4 w-4" />
                     <span style="font-size: 10px;">Log</span>
                 </button>
-                {{-- TODO: timer settings (work/break length). --}}
-                <button type="button" class="flex flex-1 flex-col items-center gap-1 hover:bg-white/5" style="padding: 8px 0; color: #dcdcdc;" title="Settings (coming soon)">
-                    <x-heroicon-m-cog-6-tooth class="h-4 w-4" />
-                    <span style="font-size: 10px;">Settings</span>
-                </button>
+                {{-- Settings: opens a small menu upward (footer sits at the panel's bottom). --}}
+                <div x-data="{ open: false }" class="relative flex flex-1" x-on:click.outside="open = false">
+                    <button type="button" x-on:click="open = ! open" class="flex flex-1 flex-col items-center gap-1 hover:bg-white/5" style="padding: 8px 0; color: #dcdcdc;" title="Settings">
+                        <x-heroicon-m-cog-6-tooth class="h-4 w-4" />
+                        <span style="font-size: 10px;">Settings</span>
+                    </button>
+                    <div
+                        x-show="open"
+                        x-transition
+                        class="absolute"
+                        style="display: none; right: 4px; bottom: 100%; margin-bottom: 6px; z-index: 60; width: 12rem; border-radius: 8px; padding: 4px; background-color: #3a3a3a; box-shadow: 0 12px 32px -8px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.30);"
+                    >
+                        <button
+                            type="button"
+                            wire:click="openColorEditor"
+                            x-on:click="open = false"
+                            class="flex w-full items-center gap-2 hover:bg-white/10"
+                            style="padding: 7px 10px; border-radius: 6px; font-size: 12px; color: #f0f0f0; text-align: left;"
+                        >
+                            <x-heroicon-m-swatch class="h-4 w-4" style="flex: none; opacity: 0.8;" />
+                            Edit color
+                        </button>
+                    </div>
+                </div>
             </div>
         @endif
         </div>
@@ -577,6 +596,76 @@
                     >
                         Add
                     </button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- Edit color dialog (Settings > Edit color) --}}
+    @if ($showColorEditor)
+        <div
+            data-testid="color-editor-modal"
+            class="pointer-events-auto fixed inset-0 flex items-start justify-center overflow-y-auto"
+            style="z-index: 90; background-color: rgba(0, 0, 0, 0.45); padding: 48px 16px; overscroll-behavior: contain;"
+            wire:click.self="closeColorEditor"
+            x-on:keydown.escape.window="$wire.closeColorEditor()"
+        >
+            <div class="flex w-full flex-col bg-white" style="max-width: 420px; max-height: calc(100vh - 96px); border-radius: 6px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); color: #1f2937;">
+                {{-- Header --}}
+                <div class="relative flex-none" style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb;">
+                    <h2 class="text-center" style="font-size: 16px; font-weight: 700;">Edit color</h2>
+                    <button type="button" wire:click="closeColorEditor" class="absolute hover:text-gray-700" style="top: 14px; right: 14px; color: #9ca3af;" title="Close">
+                        <x-heroicon-m-x-mark class="h-5 w-5" />
+                    </button>
+                </div>
+
+                {{-- Colour list --}}
+                <div class="min-h-0 flex-1 overflow-y-auto" style="padding: 8px 0;">
+                    @forelse ($this->colorRows as $row)
+                        <div wire:key="color-row-{{ $row->id }}">
+                            {{-- Row (display) --}}
+                            @if ($editColorId !== $row->id)
+                                <div class="group flex items-center gap-3 hover:bg-gray-50" style="padding: 8px 16px;">
+                                    <span style="display: inline-block; width: 14px; height: 14px; border-radius: 9999px; flex: none; background-color: {{ \App\Support\Palette::tint($row->color)['dot'] }};"></span>
+                                    <span class="min-w-0 flex-1 truncate" style="font-size: 13px; font-weight: 600;">{{ $row->name }}</span>
+                                    @if ($row->tasks_count > 0)
+                                        <span style="font-size: 11px; color: #9ca3af;">{{ $row->tasks_count }} {{ \Illuminate\Support\Str::plural('task', $row->tasks_count) }}</span>
+                                    @endif
+                                    <button type="button" wire:click="startEditColor({{ $row->id }})" class="opacity-0 hover:!text-gray-700 group-hover:opacity-100" style="color: #9ca3af; flex: none;" title="Edit">
+                                        <x-heroicon-m-pencil-square class="h-4 w-4" />
+                                    </button>
+                                    <button type="button" wire:click="deleteColorRow({{ $row->id }})" wire:confirm="Delete this color? Tasks using it keep their swatch but lose this label." class="opacity-0 hover:!text-red-600 group-hover:opacity-100" style="color: #9ca3af; flex: none;" title="Delete">
+                                        <x-heroicon-m-trash class="h-4 w-4" />
+                                    </button>
+                                </div>
+                            @else
+                                {{-- Row (inline editor) --}}
+                                @include('livewire.partials.color-row-editor')
+                            @endif
+                        </div>
+                    @empty
+                        <p class="text-center" style="padding: 20px; font-size: 13px; color: #6b7280;">No colors yet.</p>
+                    @endforelse
+
+                    {{-- Add-new editor --}}
+                    @if ($editColorId === 0)
+                        @include('livewire.partials.color-row-editor')
+                    @endif
+                </div>
+
+                {{-- Footer --}}
+                <div class="flex justify-between flex-none" style="padding: 12px 16px; border-top: 1px solid #e5e7eb;">
+                    <button
+                        type="button"
+                        wire:click="startAddColor"
+                        @disabled($editColorId === 0)
+                        class="flex items-center gap-1.5 hover:opacity-80 disabled:opacity-40"
+                        style="font-size: 13px; font-weight: 600; color: #2563eb;"
+                    >
+                        <x-heroicon-m-plus class="h-4 w-4" />
+                        Add color
+                    </button>
+                    <button type="button" wire:click="closeColorEditor" style="font-size: 13px; color: #6b7280;" class="hover:text-gray-800">Done</button>
                 </div>
             </div>
         </div>
