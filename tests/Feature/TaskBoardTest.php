@@ -172,6 +172,80 @@ it('exposes the running time entry for running-card styling', function () {
         ->and($entry->task_id)->toBe($task->id);
 });
 
+it('opens the task-history modal from the detail rail and renders the entries', function () {
+    $column = makeColumn('Today', 1);
+    $task = Task::create(['name' => 'Tracked', 'color' => 'blue', 'board_column_id' => $column->id, 'position' => 0, 'date' => today()]);
+    $other = Task::create(['name' => 'Other', 'color' => 'red', 'board_column_id' => $column->id, 'position' => 1, 'date' => today()]);
+
+    \App\Models\TimeEntry::create(['task_id' => $task->id, 'type' => 'pomodoro', 'started_at' => now()->subDay(), 'ended_at' => now()->subDay()->addMinutes(25), 'seconds' => 1500]);
+    \App\Models\TimeEntry::create(['task_id' => $task->id, 'type' => 'stopwatch', 'started_at' => now()->subHour(), 'ended_at' => now()->subMinutes(30), 'seconds' => 1800]);
+    // Another task's entry and a still-running entry must both stay out.
+    \App\Models\TimeEntry::create(['task_id' => $other->id, 'type' => 'pomodoro', 'started_at' => now()->subHours(2), 'ended_at' => now()->subHours(2)->addMinutes(25), 'seconds' => 1500]);
+    \App\Models\TimeEntry::create(['task_id' => $task->id, 'type' => 'pomodoro', 'started_at' => now(), 'ended_at' => null, 'seconds' => 0]);
+
+    $component = Livewire::test(TaskBoard::class)
+        ->call('viewTask', $task->id)
+        ->call('openTaskHistory')
+        ->assertSet('showTaskHistory', true)
+        ->assertSee('Successful Pomodoro');
+
+    $days = $component->instance()->getTaskHistoryDays();
+
+    expect($days)->toHaveCount(2)
+        ->and($days[0]['label'])->toBe('Today')
+        ->and($days[0]['entries'])->toHaveCount(1)
+        ->and($days[1]['label'])->toBe('Yesterday')
+        ->and($days[1]['pomodoros'])->toBe(1);
+});
+
+it('filters the task history by period', function () {
+    $column = makeColumn('Today', 1);
+    $task = Task::create(['name' => 'Tracked', 'color' => 'blue', 'board_column_id' => $column->id, 'position' => 0, 'date' => today()]);
+
+    \App\Models\TimeEntry::create(['task_id' => $task->id, 'type' => 'pomodoro', 'started_at' => now()->subMonths(2), 'ended_at' => now()->subMonths(2)->addMinutes(25), 'seconds' => 1500]);
+    \App\Models\TimeEntry::create(['task_id' => $task->id, 'type' => 'pomodoro', 'started_at' => now(), 'ended_at' => now()->addMinutes(25), 'seconds' => 1500]);
+
+    $component = Livewire::test(TaskBoard::class)
+        ->call('viewTask', $task->id)
+        ->call('openTaskHistory');
+
+    expect($component->instance()->getTaskHistoryDays()->sum(fn ($day) => $day['entries']->count()))->toBe(2);
+
+    $component->set('historyPeriod', 'today');
+
+    expect($component->instance()->getTaskHistoryDays()->sum(fn ($day) => $day['entries']->count()))->toBe(1);
+});
+
+it('deletes a history entry and rolls its time off the task', function () {
+    $column = makeColumn('Today', 1);
+    $task = Task::create(['name' => 'Tracked', 'color' => 'blue', 'board_column_id' => $column->id, 'position' => 0, 'date' => today(), 'total_seconds_spent' => 1500]);
+    $entry = \App\Models\TimeEntry::create(['task_id' => $task->id, 'type' => 'pomodoro', 'started_at' => now()->subHour(), 'ended_at' => now()->subHour()->addMinutes(25), 'seconds' => 1500]);
+
+    Livewire::test(TaskBoard::class)
+        ->call('viewTask', $task->id)
+        ->call('openTaskHistory')
+        ->call('deleteHistoryEntry', $entry->id)
+        ->assertDispatched('pomodoro-updated');
+
+    expect(\App\Models\TimeEntry::find($entry->id))->toBeNull()
+        ->and($task->fresh()->total_seconds_spent)->toBe(0);
+});
+
+it('closes the history modal when the detail modal closes', function () {
+    $column = makeColumn('Today', 1);
+    $task = Task::create(['name' => 'Tracked', 'color' => 'blue', 'board_column_id' => $column->id, 'position' => 0, 'date' => today()]);
+
+    Livewire::test(TaskBoard::class)
+        ->call('viewTask', $task->id)
+        ->call('openTaskHistory')
+        ->assertSet('showTaskHistory', true)
+        ->call('closeTaskHistory')
+        ->assertSet('showTaskHistory', false)
+        ->call('openTaskHistory')
+        ->call('closeDetailModal')
+        ->assertSet('showTaskHistory', false);
+});
+
 it('toggles a subtask finished state', function () {
     $column = makeColumn('Today', 1);
     $task = Task::create(['name' => 'Task', 'color' => 'blue', 'board_column_id' => $column->id, 'position' => 0, 'date' => today()]);

@@ -178,8 +178,8 @@
                 <x-heroicon-m-play class="h-5 w-5" />
             </button>
 
-            {{-- Reports (stub) --}}
-            <button type="button" class="{{ $railBtn }}" title="Reports (coming soon)">
+            {{-- Reports (task history) --}}
+            <button type="button" wire:click="openTaskHistory" class="{{ $railBtn }}" title="Reports">
                 <x-heroicon-m-chart-bar class="h-5 w-5" />
             </button>
 

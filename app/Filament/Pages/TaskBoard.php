@@ -33,6 +33,12 @@ class TaskBoard extends Page
     /** Inline "add subtask" field used by the detail modal. */
     public string $newSubtask = '';
 
+    /** When true, the task-history modal (detail rail's Reports button) is showing. */
+    public bool $showTaskHistory = false;
+
+    /** Task-history period filter (same options as the Timer log). */
+    public string $historyPeriod = 'all';
+
     public array $taskForm = [
         'name' => '',
         'color' => '',
@@ -131,8 +137,78 @@ class TaskBoard extends Page
     {
         $this->viewingTaskId = null;
         $this->newSubtask = '';
+        $this->showTaskHistory = false;
 
         $this->dispatch('task-closed');
+    }
+
+    /** Open the history modal for the task shown in the detail modal. */
+    public function openTaskHistory(): void
+    {
+        if ($this->viewingTaskId) {
+            $this->showTaskHistory = true;
+        }
+    }
+
+    public function closeTaskHistory(): void
+    {
+        $this->showTaskHistory = false;
+    }
+
+    /**
+     * Completed entries for the viewing task's history modal, filtered by
+     * period and grouped by day — the same shape the Timer log renders.
+     */
+    public function getTaskHistoryDays(): \Illuminate\Support\Collection
+    {
+        if (! $this->viewingTaskId) {
+            return collect();
+        }
+
+        $start = match ($this->historyPeriod) {
+            'today' => today(),
+            'this_week' => now()->startOfWeek(),
+            'this_last_week' => now()->subWeek()->startOfWeek(),
+            'this_month' => now()->startOfMonth(),
+            default => null, // all time
+        };
+
+        return \App\Models\TimeEntry::where('task_id', $this->viewingTaskId)
+            ->whereNotNull('ended_at')
+            ->when($start, fn ($query) => $query->where('started_at', '>=', $start))
+            ->orderBy('started_at')
+            ->get()
+            ->groupBy(fn (\App\Models\TimeEntry $entry) => $entry->started_at->toDateString())
+            ->map(function ($entries, string $date) {
+                $day = \Illuminate\Support\Carbon::parse($date);
+
+                return [
+                    'date' => $day,
+                    'label' => $day->isToday() ? 'Today' : ($day->isYesterday() ? 'Yesterday' : $day->format('l, j F')),
+                    'seconds' => (int) $entries->sum('seconds'),
+                    'pomodoros' => $entries->where('type', 'pomodoro')->count(),
+                    'entries' => $entries,
+                ];
+            })
+            ->sortByDesc(fn (array $day) => $day['date'])
+            ->values();
+    }
+
+    /** Remove an entry from the history modal and roll its time off the task. */
+    public function deleteHistoryEntry(int $entryId): void
+    {
+        $entry = \App\Models\TimeEntry::find($entryId);
+
+        if (! $entry) {
+            return;
+        }
+
+        $task = $entry->task;
+        $entry->delete();
+        $task?->recalculateSecondsSpent();
+
+        // Refresh the timer panel / board badges that show this task's totals.
+        $this->dispatch('pomodoro-updated');
     }
 
     /** Add a subtask to the task currently shown in the detail modal. */

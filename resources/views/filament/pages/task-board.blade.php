@@ -197,6 +197,13 @@
             'task' => $this->getViewingTask(),
             'tint' => $tint,
         ])
+
+        {{-- Task history modal (Reports button on the detail rail) --}}
+        @if ($showTaskHistory)
+            @include('filament.pages.partials.task-history-modal', [
+                'task' => $this->getViewingTask(),
+            ])
+        @endif
     @endif
 
     {{-- Create / edit form modal --}}
