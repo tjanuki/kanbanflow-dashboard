@@ -254,6 +254,18 @@ class TaskBoard extends Page
         Task::whereKey($this->viewingTaskId)->update(['color' => $color]);
     }
 
+    /** Rename the task shown in the detail modal (saved on blur/enter). */
+    public function renameViewingTask(string $name): void
+    {
+        $name = trim($name);
+
+        if (! $this->viewingTaskId || $name === '') {
+            return;
+        }
+
+        Task::whereKey($this->viewingTaskId)->update(['name' => $name]);
+    }
+
     /** Switch from the detail modal into the editable form. */
     public function editFromDetail(): void
     {
