@@ -24,10 +24,12 @@ class Task extends Model
         'total_seconds_spent',
         'total_seconds_estimate',
         'changed_properties',
+        'completed_at',
     ];
 
     protected $casts = [
         'date' => 'date',
+        'completed_at' => 'datetime',
     ];
 
     public static function getForm(): array

@@ -79,15 +79,46 @@
                     data-column-id="{{ $column->id }}"
                     class="flex min-h-[60px] flex-col gap-1.5 px-2 pb-3 pt-1"
                 >
-                    @foreach ($column->tasks as $task)
-                        @include('filament.pages.partials.task-card', [
-                            'task' => $task,
-                            'tint' => $tint,
-                            'runningTaskId' => $runningTaskId,
-                            'runningStartedAt' => $runningStartedAt,
-                            'selectedTaskId' => $this->viewingTaskId,
-                        ])
-                    @endforeach
+                    @if ($column->name === 'Done')
+                        {{-- Done column: bucket cards by their completion day, newest first. --}}
+                        @php
+                            $doneGroups = $column->tasks
+                                ->groupBy(fn ($task) => optional($task->completed_at ?? $task->date)->toDateString() ?: 'unknown')
+                                ->sortKeysDesc();
+                        @endphp
+                        @foreach ($doneGroups as $dateKey => $groupTasks)
+                            @php
+                                $day = $dateKey === 'unknown' ? null : \Illuminate\Support\Carbon::parse($dateKey);
+                                $label = $day === null
+                                    ? 'No date'
+                                    : ($day->isToday() ? 'Today' : ($day->isYesterday() ? 'Yesterday' : $day->format('l, j F')));
+                            @endphp
+                            <div
+                                data-date-group
+                                class="px-1 pb-0.5 pt-1 text-xs font-semibold text-gray-400 dark:text-gray-500"
+                                style="border-bottom: 1px solid; border-color: #e5e7eb;"
+                            >{{ $label }}</div>
+                            @foreach ($groupTasks as $task)
+                                @include('filament.pages.partials.task-card', [
+                                    'task' => $task,
+                                    'tint' => $tint,
+                                    'runningTaskId' => $runningTaskId,
+                                    'runningStartedAt' => $runningStartedAt,
+                                    'selectedTaskId' => $this->viewingTaskId,
+                                ])
+                            @endforeach
+                        @endforeach
+                    @else
+                        @foreach ($column->tasks as $task)
+                            @include('filament.pages.partials.task-card', [
+                                'task' => $task,
+                                'tint' => $tint,
+                                'runningTaskId' => $runningTaskId,
+                                'runningStartedAt' => $runningStartedAt,
+                                'selectedTaskId' => $this->viewingTaskId,
+                            ])
+                        @endforeach
+                    @endif
                 </div>
             </div>
         @endforeach

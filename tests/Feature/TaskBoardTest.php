@@ -108,6 +108,97 @@ it('moves a task to another column and renumbers positions', function () {
         ->and($b->fresh()->position)->toBe(2);
 });
 
+it('stamps completed_at and appends to the bottom of the Done "Today" group when moving right into Done', function () {
+    $today = makeColumn('Today', 1);
+    $done = makeColumn('Done', 2);
+
+    // Older Done task from a previous day sits in its own date group.
+    Task::create(['name' => 'Old done', 'color' => 'blue', 'board_column_id' => $done->id, 'position' => 0, 'date' => today()->subDays(3), 'completed_at' => today()->subDays(3)]);
+    // A task already completed today.
+    $firstToday = Task::create(['name' => 'First today', 'color' => 'blue', 'board_column_id' => $done->id, 'position' => 5, 'date' => today(), 'completed_at' => now()]);
+
+    $mover = Task::create(['name' => 'Mover', 'color' => 'red', 'board_column_id' => $today->id, 'position' => 0, 'date' => today()]);
+
+    Livewire::test(TaskBoard::class)->call('moveTaskRight', $mover->id);
+
+    $mover->refresh();
+    expect($mover->board_column_id)->toBe($done->id)
+        ->and($mover->completed_at)->not->toBeNull()
+        ->and($mover->completed_at->toDateString())->toBe(today()->toDateString())
+        // Bottom of today's group: just past the highest position among today's tasks.
+        ->and($mover->position)->toBe($firstToday->position + 1);
+});
+
+it('appends to the bottom of the Done "Today" group when moving the viewing task into Done', function () {
+    $today = makeColumn('Today', 1);
+    $done = makeColumn('Done', 2);
+
+    $firstToday = Task::create(['name' => 'First today', 'color' => 'blue', 'board_column_id' => $done->id, 'position' => 2, 'date' => today(), 'completed_at' => now()]);
+    $task = Task::create(['name' => 'Mover', 'color' => 'red', 'board_column_id' => $today->id, 'position' => 0, 'date' => today()]);
+
+    Livewire::test(TaskBoard::class)
+        ->call('viewTask', $task->id)
+        ->call('moveViewingTask', $done->id);
+
+    $task->refresh();
+    expect($task->board_column_id)->toBe($done->id)
+        ->and($task->completed_at?->toDateString())->toBe(today()->toDateString())
+        ->and($task->position)->toBe($firstToday->position + 1);
+});
+
+it('date-stamps a card dragged into Done while honouring its dropped position', function () {
+    $today = makeColumn('Today', 1);
+    $done = makeColumn('Done', 2);
+
+    $a = Task::create(['name' => 'A', 'color' => 'blue', 'board_column_id' => $done->id, 'position' => 0, 'date' => today(), 'completed_at' => now()]);
+    $b = Task::create(['name' => 'B', 'color' => 'blue', 'board_column_id' => $done->id, 'position' => 1, 'date' => today(), 'completed_at' => now()]);
+    $dragged = Task::create(['name' => 'Dragged', 'color' => 'red', 'board_column_id' => $today->id, 'position' => 0, 'date' => today()]);
+
+    // Dropped between A and B — the drop order is respected, not overridden.
+    Livewire::test(TaskBoard::class)
+        ->call('moveTask', $dragged->id, $done->id, [$a->id, $dragged->id, $b->id]);
+
+    $dragged->refresh();
+    expect($dragged->board_column_id)->toBe($done->id)
+        ->and($dragged->completed_at?->toDateString())->toBe(today()->toDateString())
+        ->and($dragged->position)->toBe(1)
+        ->and($a->fresh()->position)->toBe(0)
+        ->and($b->fresh()->position)->toBe(2);
+});
+
+it('reorders within the Done column on drag without changing completed_at', function () {
+    $done = makeColumn('Done', 2);
+
+    $stamp = today()->subDays(2)->setTime(9, 0);
+    $a = Task::create(['name' => 'A', 'color' => 'blue', 'board_column_id' => $done->id, 'position' => 0, 'date' => today(), 'completed_at' => $stamp]);
+    $b = Task::create(['name' => 'B', 'color' => 'blue', 'board_column_id' => $done->id, 'position' => 1, 'date' => today(), 'completed_at' => $stamp]);
+
+    // Drag B above A within the same column/group.
+    Livewire::test(TaskBoard::class)
+        ->call('moveTask', $b->id, $done->id, [$b->id, $a->id]);
+
+    expect($b->fresh()->position)->toBe(0)
+        ->and($a->fresh()->position)->toBe(1)
+        // A within-column reorder must not re-date the card.
+        ->and($b->fresh()->completed_at->toDateString())->toBe($stamp->toDateString());
+});
+
+it('drags a task out of the Done column into another column', function () {
+    $done = makeColumn('Done', 2);
+    $ideas = makeColumn('Ideas', 3);
+
+    $existing = Task::create(['name' => 'Existing', 'color' => 'blue', 'board_column_id' => $ideas->id, 'position' => 0, 'date' => today()]);
+    $mover = Task::create(['name' => 'Mover', 'color' => 'red', 'board_column_id' => $done->id, 'position' => 0, 'date' => today(), 'completed_at' => now()]);
+
+    Livewire::test(TaskBoard::class)
+        ->call('moveTask', $mover->id, $ideas->id, [$existing->id, $mover->id]);
+
+    $mover->refresh();
+    expect($mover->board_column_id)->toBe($ideas->id)
+        ->and($mover->position)->toBe(1)
+        ->and($existing->fresh()->position)->toBe(0);
+});
+
 it('opens and closes the read-only detail modal', function () {
     $column = makeColumn('Today', 1);
     $task = Task::create(['name' => 'Detail me', 'color' => 'blue', 'board_column_id' => $column->id, 'position' => 0, 'date' => today()]);

@@ -229,19 +229,28 @@ class TaskBoard extends Page
         $this->newSubtask = '';
     }
 
-    /** Move the detail task to another column (appended to its end). */
+    /** Move the detail task to another column. */
     public function moveViewingTask(int $columnId): void
     {
         if (! $this->viewingTaskId) {
             return;
         }
 
-        $position = (int) Task::where('board_column_id', $columnId)->max('position');
+        $task = Task::find($this->viewingTaskId);
 
-        Task::whereKey($this->viewingTaskId)->update([
-            'board_column_id' => $columnId,
-            'position' => $position + 1,
-        ]);
+        if (! $task) {
+            return;
+        }
+
+        $task->board_column_id = $columnId;
+
+        if ($this->isDoneColumn($columnId)) {
+            // Sink it to the bottom of today's Done group, not the whole column.
+            $this->appendToDoneToday($task);
+        } else {
+            $task->position = (int) Task::where('board_column_id', $columnId)->max('position') + 1;
+            $task->save();
+        }
     }
 
     /** Apply a colour to the task shown in the detail modal (stays open). */
@@ -279,18 +288,34 @@ class TaskBoard extends Page
 
     /**
      * Persist a drag-and-drop move: reassign the column and renumber positions
-     * for every task in the destination column.
+     * for every task in the destination column, preserving the exact drop order.
+     *
+     * Drag-and-drop is the manual, position-respecting path — it reorders cards
+     * within the Done column and drags them out to other columns. Only a card
+     * crossing *into* Done from elsewhere is date-stamped (so it files under the
+     * "Today" group); the raw drop position is otherwise left untouched.
      */
     public function moveTask(int $taskId, int $columnId, array $orderedIds): void
     {
-        DB::transaction(function () use ($taskId, $columnId, $orderedIds) {
-            Task::whereKey($taskId)->update(['board_column_id' => $columnId]);
+        $task = Task::find($taskId);
 
+        if (! $task) {
+            return;
+        }
+
+        $enteringDone = $this->isDoneColumn($columnId) && ! $this->isDoneColumn((int) $task->board_column_id);
+
+        DB::transaction(function () use ($task, $columnId, $orderedIds, $enteringDone) {
             foreach ($orderedIds as $index => $id) {
                 Task::whereKey($id)->update([
                     'board_column_id' => $columnId,
                     'position' => $index,
                 ]);
+            }
+
+            if ($enteringDone) {
+                $task->completed_at = now();
+                $task->save();
             }
         });
     }
@@ -318,12 +343,46 @@ class TaskBoard extends Page
             return;
         }
 
-        $position = (int) Task::where('board_column_id', $nextColumn->id)->max('position');
+        $task->board_column_id = $nextColumn->id;
 
-        $task->update([
-            'board_column_id' => $nextColumn->id,
-            'position' => $position + 1,
-        ]);
+        if ($this->isDoneColumn($nextColumn->id)) {
+            $this->appendToDoneToday($task);
+
+            return;
+        }
+
+        $task->position = (int) Task::where('board_column_id', $nextColumn->id)->max('position') + 1;
+        $task->save();
+    }
+
+    /** Is this column the date-grouped "Done" column? */
+    private function isDoneColumn(int $columnId): bool
+    {
+        return Column::whereKey($columnId)->value('name') === 'Done';
+    }
+
+    /**
+     * Stamp a task as completed today and place it at the bottom of the Done
+     * column's "Today" date group (not the very bottom of the column, since the
+     * newest group renders at the top).
+     */
+    private function appendToDoneToday(Task $task): void
+    {
+        $task->completed_at = now();
+
+        $todayGroup = Task::where('board_column_id', $task->board_column_id)
+            ->where('id', '!=', $task->id)
+            ->whereDate('completed_at', today());
+
+        // Bottom of today's group, or after everything if today's group is empty.
+        $base = $todayGroup->exists()
+            ? (int) $todayGroup->max('position')
+            : (int) Task::where('board_column_id', $task->board_column_id)
+                ->where('id', '!=', $task->id)
+                ->max('position');
+
+        $task->position = $base + 1;
+        $task->save();
     }
 
     /** Context-menu "Move > Move to top": float the task above its column peers. */
