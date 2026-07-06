@@ -394,6 +394,22 @@ class PomodoroTimer extends Component
         $this->showAddTime = true;
     }
 
+    /**
+     * "Add item" in a task's history modal: open the dialog with that task
+     * pre-selected. An optional date (from a specific day group) overrides the
+     * default of today.
+     */
+    #[On('open-add-time')]
+    public function openAddTimeFor(int $taskId, ?string $date = null): void
+    {
+        $this->openAddTime();
+        $this->manualTaskId = $taskId;
+
+        if ($date) {
+            $this->manualDate = $date;
+        }
+    }
+
     public function closeAddTime(): void
     {
         $this->showAddTime = false;
@@ -413,12 +429,33 @@ class PomodoroTimer extends Component
             return;
         }
 
+        // The date must be a real calendar day and can't be in the future —
+        // you can only log time you've already spent. createFromFormat throws
+        // on malformed/trailing input, so guard it and re-check the round-trip
+        // to reject anything that isn't an exact Y-m-d.
         try {
-            $day = Carbon::parse($this->manualDate)->startOfDay();
+            $day = Carbon::createFromFormat('!Y-m-d', $this->manualDate);
+        } catch (\Throwable $e) {
+            $day = null;
+        }
+
+        if (! $day || $day->format('Y-m-d') !== $this->manualDate) {
+            $this->manualError = 'Enter a valid date.';
+
+            return;
+        }
+
+        if ($day->isAfter(today())) {
+            $this->manualError = "The date can't be in the future.";
+
+            return;
+        }
+
+        try {
             $start = $day->copy()->setTimeFromTimeString($this->manualFrom);
             $end = $day->copy()->setTimeFromTimeString($this->manualTo);
         } catch (\Throwable $e) {
-            $this->manualError = 'Enter a valid date and time.';
+            $this->manualError = 'Enter a valid time.';
 
             return;
         }

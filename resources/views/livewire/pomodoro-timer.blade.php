@@ -52,7 +52,10 @@
     }";
 @endphp
 
-<div class="pointer-events-none fixed inset-0" style="z-index: 80;">
+{{-- The wrapper is a stacking context: normally z 80 (above the detail modal at
+     55), but raised past the task-history modal (z 90) while the Add-time dialog
+     is open, so "Add item" from the history modal surfaces the dialog on top. --}}
+<div class="pointer-events-none fixed inset-0" style="z-index: {{ $showAddTime ? 95 : 80 }};">
     {{-- The launcher now lives in the top bar (see PomodoroPill / USER_MENU_BEFORE). --}}
 
     {{-- Slow flash for a finished pomodoro (Tailwind animate-* utilities are absent in Filament CSS). --}}
@@ -476,11 +479,23 @@
                     const ap = h < 12 ? 'AM' : 'PM';
                     return String(hh).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ' ' + ap;
                 },
-                {{-- On blur: normalize the typed text, keeping the last valid value if it can't be parsed. --}}
+                {{-- Add minutes to a 24h 'HH:MM', clamped to 23:59 so it never rolls past midnight. --}}
+                addMinutes(hhmm, mins) {
+                    const [h, m] = (hhmm || '').split(':').map(Number);
+                    if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
+                    const total = Math.min(23 * 60 + 59, h * 60 + m + mins);
+                    return String(Math.floor(total / 60)).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0');
+                },
+                {{-- On blur: normalize the typed text, keeping the last valid value if it can't be parsed.
+                     A freshly-parsed 'From' also seeds 'To' one pomodoro (25 min) later. --}}
                 norm(which) {
                     if (which === 'from') {
                         const v = this.parse(this.fromText);
-                        if (v) this.from = v;
+                        if (v) {
+                            this.from = v;
+                            this.to = this.addMinutes(v, 25);
+                            this.toText = this.fmt12(this.to);
+                        }
                         this.fromText = this.fmt12(this.from);
                     } else {
                         const v = this.parse(this.toText);

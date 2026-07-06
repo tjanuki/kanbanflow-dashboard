@@ -489,6 +489,32 @@ it('opens the add-time modal seeded with the open task and today', function () {
         ->assertSee('Add time manually');
 });
 
+it('opens the add-time modal pre-selecting the task from an open-add-time event', function () {
+    $task = pomodoroTask();
+    $other = Task::create(['name' => 'Other', 'color' => 'red', 'board_column_id' => $task->board_column_id, 'position' => 1, 'date' => today()]);
+
+    Carbon::setTestNow('2026-06-12 14:30:00');
+
+    Livewire::test(PomodoroTimer::class)
+        ->call('setOpenTask', $other->id, $other->name)
+        ->dispatch('open-add-time', taskId: $task->id)
+        ->assertSet('showAddTime', true)
+        ->assertSet('manualTaskId', $task->id)
+        ->assertSet('manualDate', '2026-06-12');
+});
+
+it('pre-fills the date when open-add-time carries a day', function () {
+    $task = pomodoroTask();
+
+    Carbon::setTestNow('2026-06-12 14:30:00');
+
+    Livewire::test(PomodoroTimer::class)
+        ->dispatch('open-add-time', taskId: $task->id, date: '2026-06-16')
+        ->assertSet('showAddTime', true)
+        ->assertSet('manualTaskId', $task->id)
+        ->assertSet('manualDate', '2026-06-16');
+});
+
 it('logs a completed manual entry and updates total_seconds_spent', function () {
     $task = pomodoroTask();
 
@@ -509,6 +535,77 @@ it('logs a completed manual entry and updates total_seconds_spent', function () 
         ->and($entry->started_at->format('Y-m-d H:i'))->toBe('2026-06-12 09:00')
         ->and($entry->ended_at->format('Y-m-d H:i'))->toBe('2026-06-12 10:30')
         ->and($task->fresh()->total_seconds_spent)->toBe(5400);
+});
+
+it('rejects a manual entry with an invalid date', function () {
+    $task = pomodoroTask();
+
+    Livewire::test(PomodoroTimer::class)
+        ->call('openAddTime')
+        ->set('manualTaskId', $task->id)
+        ->set('manualDate', 'not-a-date')
+        ->set('manualFrom', '09:00')
+        ->set('manualTo', '10:00')
+        ->call('saveManualEntry')
+        ->assertSet('showAddTime', true)
+        ->assertSet('manualError', 'Enter a valid date.');
+
+    expect(TimeEntry::count())->toBe(0);
+});
+
+it('rejects a manual entry with a malformed date without erroring', function () {
+    $task = pomodoroTask();
+
+    // Values like this pass a loose format check but make Carbon::createFromFormat
+    // throw on the trailing data — the guard must catch it, not 500.
+    foreach (['2026-07-06x', '2026-13-01', '2026-07', ''] as $bad) {
+        Livewire::test(PomodoroTimer::class)
+            ->call('openAddTime')
+            ->set('manualTaskId', $task->id)
+            ->set('manualDate', $bad)
+            ->set('manualFrom', '09:00')
+            ->set('manualTo', '10:00')
+            ->call('saveManualEntry')
+            ->assertSet('showAddTime', true)
+            ->assertSet('manualError', 'Enter a valid date.');
+    }
+
+    expect(TimeEntry::count())->toBe(0);
+});
+
+it('rejects a manual entry dated in the future', function () {
+    $task = pomodoroTask();
+
+    Carbon::setTestNow('2026-06-12 14:30:00');
+
+    Livewire::test(PomodoroTimer::class)
+        ->call('openAddTime')
+        ->set('manualTaskId', $task->id)
+        ->set('manualDate', '2026-06-13')
+        ->set('manualFrom', '09:00')
+        ->set('manualTo', '10:00')
+        ->call('saveManualEntry')
+        ->assertSet('showAddTime', true)
+        ->assertSet('manualError', "The date can't be in the future.");
+
+    expect(TimeEntry::count())->toBe(0);
+});
+
+it('allows a manual entry dated today', function () {
+    $task = pomodoroTask();
+
+    Carbon::setTestNow('2026-06-12 14:30:00');
+
+    Livewire::test(PomodoroTimer::class)
+        ->call('openAddTime')
+        ->set('manualTaskId', $task->id)
+        ->set('manualDate', '2026-06-12')
+        ->set('manualFrom', '09:00')
+        ->set('manualTo', '10:00')
+        ->call('saveManualEntry')
+        ->assertSet('showAddTime', false);
+
+    expect(TimeEntry::count())->toBe(1);
 });
 
 it('rejects a manual entry whose end is not after its start', function () {

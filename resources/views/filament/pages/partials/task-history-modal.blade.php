@@ -60,6 +60,16 @@
                 <option value="this_month">Period: This month</option>
                 <option value="all">Period: All time</option>
             </select>
+            <button
+                type="button"
+                wire:click="openHistoryAddTime"
+                data-testid="task-history-add-item"
+                class="flex items-center gap-1 hover:opacity-80"
+                style="font-size: 13px; font-weight: 600; color: #2563eb;"
+            >
+                <x-heroicon-m-plus class="h-4 w-4" />
+                Add item
+            </button>
             <span style="margin-left: auto; font-size: 12px; font-weight: 600; color: #6b7280;">
                 Total {{ Format::seconds($this->getTaskHistoryDays()->sum('seconds')) }}
             </span>
@@ -69,11 +79,21 @@
         <div class="min-h-0 flex-1 overflow-y-auto" style="padding: 12px 16px; background-color: #f3f4f6; overscroll-behavior: contain;">
             @forelse ($this->getTaskHistoryDays() as $day)
                 <div class="bg-white" style="border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 12px;">
-                    {{-- Day header: label + totals --}}
+                    {{-- Day header: label + totals + per-day "Add item" --}}
                     <div class="flex items-baseline gap-4" style="padding: 10px 14px; border-bottom: 1px solid #e5e7eb;">
                         <span style="font-size: 16px; font-weight: 700;">{{ $day['label'] }}</span>
                         <span style="font-size: 12px; font-weight: 600; color: #6b7280;">{{ Format::seconds($day['seconds']) }}</span>
                         <span style="font-size: 12px; font-weight: 600; color: #6b7280;">{{ $day['pomodoros'] }} {{ \Illuminate\Support\Str::plural('Pomodoro', $day['pomodoros']) }}</span>
+                        <button
+                            type="button"
+                            wire:click="openHistoryAddTime('{{ $day['date']->toDateString() }}')"
+                            data-testid="task-history-day-add-item"
+                            class="flex items-center gap-1 hover:opacity-80"
+                            style="margin-left: auto; font-size: 12px; font-weight: 600; color: #2563eb;"
+                        >
+                            <x-heroicon-m-plus class="h-4 w-4" />
+                            Add item
+                        </button>
                     </div>
 
                     @foreach ($day['entries'] as $entry)

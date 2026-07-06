@@ -322,6 +322,35 @@ it('deletes a history entry and rolls its time off the task', function () {
         ->and($task->fresh()->total_seconds_spent)->toBe(0);
 });
 
+it('dispatches open-add-time for the viewing task from the history modal', function () {
+    $column = makeColumn('Today', 1);
+    $task = Task::create(['name' => 'Tracked', 'color' => 'blue', 'board_column_id' => $column->id, 'position' => 0, 'date' => today()]);
+
+    Livewire::test(TaskBoard::class)
+        ->call('viewTask', $task->id)
+        ->call('openTaskHistory')
+        ->assertSee('Add item')
+        ->call('openHistoryAddTime')
+        ->assertDispatched('open-add-time', taskId: $task->id);
+});
+
+it('dispatches open-add-time with a day date from a history day header', function () {
+    $column = makeColumn('Today', 1);
+    $task = Task::create(['name' => 'Tracked', 'color' => 'blue', 'board_column_id' => $column->id, 'position' => 0, 'date' => today()]);
+
+    Livewire::test(TaskBoard::class)
+        ->call('viewTask', $task->id)
+        ->call('openTaskHistory')
+        ->call('openHistoryAddTime', '2026-06-16')
+        ->assertDispatched('open-add-time', taskId: $task->id, date: '2026-06-16');
+});
+
+it('does not dispatch open-add-time without a viewing task', function () {
+    Livewire::test(TaskBoard::class)
+        ->call('openHistoryAddTime')
+        ->assertNotDispatched('open-add-time');
+});
+
 it('closes the history modal when the detail modal closes', function () {
     $column = makeColumn('Today', 1);
     $task = Task::create(['name' => 'Tracked', 'color' => 'blue', 'board_column_id' => $column->id, 'position' => 0, 'date' => today()]);

@@ -156,6 +156,17 @@ class TaskBoard extends Page
     }
 
     /**
+     * "Add item" in the history modal: open the timer's Add-time dialog for this
+     * task. A date (from a specific day group's header) pre-fills that day.
+     */
+    public function openHistoryAddTime(?string $date = null): void
+    {
+        if ($this->viewingTaskId) {
+            $this->dispatch('open-add-time', taskId: $this->viewingTaskId, date: $date);
+        }
+    }
+
+    /**
      * Completed entries for the viewing task's history modal, filtered by
      * period and grouped by day — the same shape the Timer log renders.
      */
