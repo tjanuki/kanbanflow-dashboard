@@ -66,6 +66,9 @@ class PomodoroTimer extends Component
     /** Task the manual entry is logged against. */
     public ?int $manualTaskId = null;
 
+    /** Entry being edited in the time dialog; null when adding a new one. */
+    public ?int $manualEntryId = null;
+
     /** Manual entry date (Y-m-d). */
     public string $manualDate = '';
 
@@ -386,10 +389,33 @@ class PomodoroTimer extends Component
      */
     public function openAddTime(): void
     {
+        $this->manualEntryId = null;
         $this->manualTaskId = $this->openTaskId ?? $this->runningTaskId;
         $this->manualDate = today()->toDateString();
         $this->manualFrom = now()->format('H:i');
         $this->manualTo = now()->format('H:i');
+        $this->manualError = null;
+        $this->showAddTime = true;
+    }
+
+    /**
+     * "Edit" on a history entry: open the time dialog pre-filled with that
+     * entry's task, date and start/end, and save back onto the same row.
+     */
+    #[On('open-edit-time')]
+    public function openEditTimeFor(int $entryId): void
+    {
+        $entry = TimeEntry::find($entryId);
+
+        if (! $entry || ! $entry->ended_at) {
+            return;
+        }
+
+        $this->manualEntryId = $entry->id;
+        $this->manualTaskId = $entry->task_id;
+        $this->manualDate = $entry->started_at->toDateString();
+        $this->manualFrom = $entry->started_at->format('H:i');
+        $this->manualTo = $entry->ended_at->format('H:i');
         $this->manualError = null;
         $this->showAddTime = true;
     }
@@ -470,7 +496,9 @@ class PomodoroTimer extends Component
 
         // Time is exclusive — refuse a window that overlaps an existing entry.
         // A still-running entry occupies [started_at, now], so coalesce its end.
+        // When editing, the row being edited is excluded from the check.
         $overlaps = TimeEntry::query()
+            ->when($this->manualEntryId, fn ($query) => $query->whereKeyNot($this->manualEntryId))
             ->where('started_at', '<', $end->toDateTimeString())
             ->whereRaw('COALESCE(ended_at, ?) > ?', [now()->toDateTimeString(), $start->toDateTimeString()])
             ->exists();
@@ -481,16 +509,40 @@ class PomodoroTimer extends Component
             return;
         }
 
-        TimeEntry::create([
-            'task_id' => $task->id,
-            'type' => 'manual',
-            'started_at' => $start,
-            'ended_at' => $end,
-            'seconds' => $seconds,
-            'reason' => 'Added manually',
-        ]);
+        $entry = $this->manualEntryId ? TimeEntry::find($this->manualEntryId) : null;
 
+        if ($this->manualEntryId && ! $entry) {
+            $this->manualError = 'That entry no longer exists.';
+
+            return;
+        }
+
+        $previousTask = $entry?->task;
+
+        if ($entry) {
+            $entry->update([
+                'task_id' => $task->id,
+                'started_at' => $start,
+                'ended_at' => $end,
+                'seconds' => $seconds,
+            ]);
+        } else {
+            TimeEntry::create([
+                'task_id' => $task->id,
+                'type' => 'manual',
+                'started_at' => $start,
+                'ended_at' => $end,
+                'seconds' => $seconds,
+                'reason' => 'Added manually',
+            ]);
+        }
+
+        // Re-tally both tasks in case an edit moved the entry between them.
         $task->recalculateSecondsSpent();
+        if ($previousTask && $previousTask->id !== $task->id) {
+            $previousTask->recalculateSecondsSpent();
+        }
+
         $this->dispatch('pomodoro-updated');
 
         $this->showAddTime = false;

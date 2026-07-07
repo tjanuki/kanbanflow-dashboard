@@ -345,6 +345,18 @@ it('dispatches open-add-time with a day date from a history day header', functio
         ->assertDispatched('open-add-time', taskId: $task->id, date: '2026-06-16');
 });
 
+it('dispatches open-edit-time for a history entry from the history modal', function () {
+    $column = makeColumn('Today', 1);
+    $task = Task::create(['name' => 'Tracked', 'color' => 'blue', 'board_column_id' => $column->id, 'position' => 0, 'date' => today(), 'total_seconds_spent' => 1500]);
+    $entry = \App\Models\TimeEntry::create(['task_id' => $task->id, 'type' => 'pomodoro', 'started_at' => now()->subHour(), 'ended_at' => now()->subHour()->addMinutes(25), 'seconds' => 1500]);
+
+    Livewire::test(TaskBoard::class)
+        ->call('viewTask', $task->id)
+        ->call('openTaskHistory')
+        ->call('openHistoryEditTime', $entry->id)
+        ->assertDispatched('open-edit-time', entryId: $entry->id);
+});
+
 it('does not dispatch open-add-time without a viewing task', function () {
     Livewire::test(TaskBoard::class)
         ->call('openHistoryAddTime')

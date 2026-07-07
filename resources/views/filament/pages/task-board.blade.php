@@ -360,16 +360,39 @@
         </div>
     @endif
 
-    {{-- Custom delete confirmation dialog (replaces the native browser confirm) --}}
+    {{-- Custom confirmation dialog (replaces the native browser confirm).
+         Fire `confirm-delete-task` for the task-delete defaults, or `confirm-action`
+         with { method, id, title, message, confirmLabel } to confirm any Livewire call. --}}
     <div
         x-data="{
             show: false,
-            taskId: null,
-            open(e) { this.taskId = e.detail.id; this.show = true; $nextTick(() => $refs.confirmBtn?.focus()); },
-            confirm() { if (this.taskId !== null) { $wire.deleteTask(this.taskId); } this.cancel(); },
-            cancel() { this.show = false; this.taskId = null; },
+            id: null,
+            method: 'deleteTask',
+            title: 'Delete task',
+            message: 'Are you sure you want to delete this task? This action cannot be undone.',
+            confirmLabel: 'Delete',
+            openDeleteTask(e) {
+                this.method = 'deleteTask';
+                this.title = 'Delete task';
+                this.message = 'Are you sure you want to delete this task? This action cannot be undone.';
+                this.confirmLabel = 'Delete';
+                this.id = e.detail.id;
+                this.reveal();
+            },
+            openAction(e) {
+                this.method = e.detail.method;
+                this.title = e.detail.title ?? 'Are you sure?';
+                this.message = e.detail.message ?? 'This action cannot be undone.';
+                this.confirmLabel = e.detail.confirmLabel ?? 'Delete';
+                this.id = e.detail.id ?? null;
+                this.reveal();
+            },
+            reveal() { this.show = true; $nextTick(() => $refs.confirmBtn?.focus()); },
+            confirm() { if (this.method && this.id !== null) { $wire[this.method](this.id); } this.cancel(); },
+            cancel() { this.show = false; this.id = null; },
         }"
-        @confirm-delete-task.window="open($event)"
+        @confirm-delete-task.window="openDeleteTask($event)"
+        @confirm-action.window="openAction($event)"
         @keydown.escape.window="show && cancel()"
     >
         <div
@@ -377,7 +400,7 @@
             x-cloak
             x-transition.opacity.duration.150ms
             class="fixed inset-0 flex items-center justify-center p-4"
-            style="z-index: 80; background-color: rgba(0, 0, 0, 0.45);"
+            style="z-index: 100; background-color: rgba(0, 0, 0, 0.45);"
             @click.self="cancel()"
         >
             <div
@@ -385,10 +408,8 @@
                 style="border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); padding: 1.25rem;"
                 @click.stop
             >
-                <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Delete task</h2>
-                <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                    Are you sure you want to delete this task? This action cannot be undone.
-                </p>
+                <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100" x-text="title"></h2>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-400" x-text="message"></p>
                 <div class="mt-5 flex justify-end gap-2">
                     <button
                         type="button"
@@ -403,7 +424,8 @@
                         style="background-color: #dc2626;"
                         @mouseenter="$el.style.backgroundColor = '#ef4444'"
                         @mouseleave="$el.style.backgroundColor = '#dc2626'"
-                    >Delete</button>
+                        x-text="confirmLabel"
+                    ></button>
                 </div>
             </div>
         </div>

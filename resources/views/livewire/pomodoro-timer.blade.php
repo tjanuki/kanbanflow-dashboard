@@ -429,7 +429,7 @@
     @if ($showAddTime)
         <div
             data-testid="add-time-modal"
-            class="pointer-events-auto fixed inset-0 flex items-start justify-center overflow-y-auto"
+            class="pointer-events-auto fixed inset-0 flex items-center justify-center overflow-y-auto"
             style="z-index: 90; background-color: rgba(0, 0, 0, 0.45); padding: 48px 16px; overscroll-behavior: contain;"
             wire:click.self="closeAddTime"
             x-on:keydown.escape.window="$wire.closeAddTime()"
@@ -487,14 +487,17 @@
                     return String(Math.floor(total / 60)).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0');
                 },
                 {{-- On blur: normalize the typed text, keeping the last valid value if it can't be parsed.
-                     A freshly-parsed 'From' also seeds 'To' one pomodoro (25 min) later. --}}
+                     A *changed* 'From' also seeds 'To' one pomodoro (25 min) later — but re-normalizing
+                     an unchanged 'From' (e.g. on save) must not clobber a 'To' the user set themselves. --}}
                 norm(which) {
                     if (which === 'from') {
                         const v = this.parse(this.fromText);
                         if (v) {
+                            if (v !== this.from) {
+                                this.to = this.addMinutes(v, 25);
+                                this.toText = this.fmt12(this.to);
+                            }
                             this.from = v;
-                            this.to = this.addMinutes(v, 25);
-                            this.toText = this.fmt12(this.to);
                         }
                         this.fromText = this.fmt12(this.from);
                     } else {
@@ -526,7 +529,7 @@
             <div class="flex w-full flex-col bg-white" style="max-width: 360px; border-radius: 6px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); color: #1f2937;">
                 {{-- Header --}}
                 <div class="relative flex-none" style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb;">
-                    <h2 class="text-center" style="font-size: 16px; font-weight: 700;">Add time manually</h2>
+                    <h2 class="text-center" style="font-size: 16px; font-weight: 700;">{{ $manualEntryId ? 'Edit time' : 'Add time manually' }}</h2>
                     <button type="button" wire:click="closeAddTime" class="absolute hover:text-gray-700" style="top: 14px; right: 14px; color: #9ca3af;" title="Close">
                         <x-heroicon-m-x-mark class="h-5 w-5" />
                     </button>
@@ -609,7 +612,7 @@
                         style="background-color: #4ac26b; color: #ffffff; border-radius: 4px; padding: 8px 24px; font-size: 14px; font-weight: 700;"
                         class="hover:opacity-90"
                     >
-                        Add
+                        {{ $manualEntryId ? 'Save' : 'Add' }}
                     </button>
                 </div>
             </div>

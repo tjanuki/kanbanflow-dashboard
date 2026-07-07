@@ -515,6 +515,76 @@ it('pre-fills the date when open-add-time carries a day', function () {
         ->assertSet('manualDate', '2026-06-16');
 });
 
+it('opens the time modal in edit mode pre-filled from an open-edit-time event', function () {
+    $task = pomodoroTask();
+
+    $entry = TimeEntry::create([
+        'task_id' => $task->id,
+        'type' => 'manual',
+        'started_at' => '2026-06-16 09:00:00',
+        'ended_at' => '2026-06-16 10:30:00',
+        'seconds' => 5400,
+        'reason' => 'Added manually',
+    ]);
+
+    Livewire::test(PomodoroTimer::class)
+        ->dispatch('open-edit-time', entryId: $entry->id)
+        ->assertSet('showAddTime', true)
+        ->assertSet('manualEntryId', $entry->id)
+        ->assertSet('manualTaskId', $task->id)
+        ->assertSet('manualDate', '2026-06-16')
+        ->assertSet('manualFrom', '09:00')
+        ->assertSet('manualTo', '10:30');
+});
+
+it('updates the edited entry in place instead of creating a new one', function () {
+    $task = pomodoroTask();
+
+    $entry = TimeEntry::create([
+        'task_id' => $task->id,
+        'type' => 'manual',
+        'started_at' => '2026-06-16 09:00:00',
+        'ended_at' => '2026-06-16 10:30:00',
+        'seconds' => 5400,
+        'reason' => 'Added manually',
+    ]);
+
+    Livewire::test(PomodoroTimer::class)
+        ->dispatch('open-edit-time', entryId: $entry->id)
+        ->set('manualFrom', '09:00')
+        ->set('manualTo', '11:00')
+        ->call('saveManualEntry')
+        ->assertSet('showAddTime', false)
+        ->assertDispatched('pomodoro-updated');
+
+    expect(TimeEntry::count())->toBe(1);
+
+    $fresh = $entry->fresh();
+
+    expect($fresh->seconds)->toBe(7200)
+        ->and($fresh->ended_at->format('Y-m-d H:i'))->toBe('2026-06-16 11:00')
+        ->and($task->fresh()->total_seconds_spent)->toBe(7200);
+});
+
+it('does not flag the edited entry as overlapping itself', function () {
+    $task = pomodoroTask();
+
+    $entry = TimeEntry::create([
+        'task_id' => $task->id,
+        'type' => 'manual',
+        'started_at' => '2026-06-16 09:00:00',
+        'ended_at' => '2026-06-16 10:00:00',
+        'seconds' => 3600,
+        'reason' => 'Added manually',
+    ]);
+
+    Livewire::test(PomodoroTimer::class)
+        ->dispatch('open-edit-time', entryId: $entry->id)
+        ->call('saveManualEntry')
+        ->assertSet('manualError', null)
+        ->assertSet('showAddTime', false);
+});
+
 it('logs a completed manual entry and updates total_seconds_spent', function () {
     $task = pomodoroTask();
 

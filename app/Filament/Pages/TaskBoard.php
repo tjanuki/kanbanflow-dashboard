@@ -167,6 +167,17 @@ class TaskBoard extends Page
     }
 
     /**
+     * "Edit" on a history entry: open the timer's time dialog pre-filled with
+     * that entry so its task/date/times can be changed in place.
+     */
+    public function openHistoryEditTime(int $entryId): void
+    {
+        if ($this->viewingTaskId) {
+            $this->dispatch('open-edit-time', entryId: $entryId);
+        }
+    }
+
+    /**
      * Completed entries for the viewing task's history modal, filtered by
      * period and grouped by day — the same shape the Timer log renders.
      */

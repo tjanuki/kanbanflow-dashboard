@@ -14,7 +14,7 @@
      Same layout as the Timer log modal, scoped to one task. --}}
 <div
     data-testid="task-history-modal"
-    class="pointer-events-auto fixed inset-0 flex items-start justify-center overflow-y-auto"
+    class="pointer-events-auto fixed inset-0 flex items-center justify-center overflow-y-auto"
     style="z-index: 90; background-color: rgba(0, 0, 0, 0.45); padding: 24px 16px; overscroll-behavior: contain;"
     wire:click.self="closeTaskHistory"
     x-on:keydown.escape.window.stop="$wire.closeTaskHistory()"
@@ -116,10 +116,26 @@
                                 <span class="font-mono" style="font-size: 12px; color: #374151; min-width: 32px; text-align: right;">{{ Format::seconds($entry->seconds) }}</span>
                                 <button
                                     type="button"
-                                    wire:click="deleteHistoryEntry({{ $entry->id }})"
-                                    wire:confirm="Delete this time entry?"
-                                    class="opacity-0 hover:!text-red-600 group-hover:opacity-100"
+                                    wire:click="openHistoryEditTime({{ $entry->id }})"
+                                    data-testid="task-history-edit-item"
                                     style="color: #9ca3af;"
+                                    onmouseover="this.style.color='#2563eb'"
+                                    onmouseout="this.style.color='#9ca3af'"
+                                    title="Edit entry"
+                                >
+                                    <x-heroicon-m-pencil-square class="h-4 w-4" />
+                                </button>
+                                <button
+                                    type="button"
+                                    x-on:click="$dispatch('confirm-action', {
+                                        method: 'deleteHistoryEntry',
+                                        id: {{ $entry->id }},
+                                        title: 'Delete time entry',
+                                        message: 'Are you sure you want to delete this time entry? This action cannot be undone.',
+                                    })"
+                                    style="color: #9ca3af;"
+                                    onmouseover="this.style.color='#dc2626'"
+                                    onmouseout="this.style.color='#9ca3af'"
                                     title="Delete entry"
                                 >
                                     <x-heroicon-m-trash class="h-4 w-4" />
