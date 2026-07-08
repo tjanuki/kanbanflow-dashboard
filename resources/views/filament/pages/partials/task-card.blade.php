@@ -7,17 +7,22 @@
     $totalSubs = $task->subTasks->count();
     $isRunning = $runningTaskId === $task->id;
     $isSelected = ($selectedTaskId ?? null) === $task->id;
-    $projectName = $task->project?->name ?? $task->color;
-    $initials = \Illuminate\Support\Str::of($projectName)->explode(' ')
-        ->map(fn ($w) => \Illuminate\Support\Str::substr($w, 0, 1))
-        ->take(2)->implode('');
+    // Only show a project label when it adds information. A project named after
+    // the card's colour (e.g. "Red" on a red card) is redundant, so hide it.
+    $projectName = $task->project?->name;
+    $showProject = $projectName !== null
+        && \Illuminate\Support\Str::lower($projectName) !== \Illuminate\Support\Str::lower((string) $task->color);
 
-    // Build the card's inline style: full tint background + a left accent bar
-    // for the colour scheme, a dashed border while running, and a focus ring
-    // when the card is the one open in the detail modal (the "selected" mark).
-    $cardStyle = "background-color: {$t['bg']}; color: {$t['text']}; border-left: 4px solid {$t['dot']};";
+    // Build the card's inline style: full tint background, plus either a dashed
+    // "break line" border in the accent colour while running, or a solid left
+    // accent bar when idle. A focus ring marks the card open in the detail modal.
+    $cardStyle = "background-color: {$t['bg']}; color: {$t['text']};";
     if ($isRunning) {
-        $cardStyle .= " border-color: {$t['dot']};";
+        // Filament's compiled CSS omits the `border-dashed` utility, so the
+        // dashed "break line" border must be inlined to actually render.
+        $cardStyle .= " border: 3px dashed {$t['dot']};";
+    } else {
+        $cardStyle .= " border-left: 4px solid {$t['dot']};";
     }
     if ($isSelected) {
         $cardStyle .= " box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px {$t['dot']}, 0 6px 14px -6px rgba(0,0,0,0.35);";
@@ -36,17 +41,8 @@
     ])
     style="padding: 11px 13px; {{ $cardStyle }}"
 >
-    {{-- Running member badge --}}
-    @if ($isRunning)
-        <span
-            class="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold uppercase text-white shadow"
-            style="background-color: {{ $t['dot'] }};"
-            title="Running"
-        >{{ $initials ?: 'ME' }}</span>
-    @endif
-
     <div class="flex items-start justify-between gap-2">
-        <span class="flex-1 text-left font-medium leading-snug">
+        <span class="flex-1 text-left font-bold leading-snug">
             {{ $task->name }}
         </span>
         <button
@@ -88,10 +84,12 @@
                     @endif
                 </span>
             @endif
-            <span class="ml-auto flex min-w-0 items-center gap-1" title="Project">
-                <span class="inline-block h-2 w-2 flex-shrink-0 rounded-full" style="background-color: {{ $t['dot'] }};"></span>
-                <span class="truncate">{{ $projectName }}</span>
-            </span>
+            @if ($showProject)
+                <span class="ml-auto flex min-w-0 items-center gap-1" title="Project">
+                    <span class="inline-block h-2 w-2 flex-shrink-0 rounded-full" style="background-color: {{ $t['dot'] }};"></span>
+                    <span class="truncate">{{ $projectName }}</span>
+                </span>
+            @endif
         </div>
 
     {{-- Footer: subtasks --}}
