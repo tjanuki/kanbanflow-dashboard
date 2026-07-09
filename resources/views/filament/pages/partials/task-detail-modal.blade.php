@@ -150,15 +150,66 @@
                 $railBtn = 'flex h-10 w-10 flex-col items-center justify-center rounded-lg text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700';
             @endphp
 
-            {{-- Timer --}}
-            <button
-                type="button"
-                wire:click="$dispatch('start-pomodoro', { taskId: {{ $task->id }} })"
-                class="{{ $railBtn }} hover:!bg-red-100 hover:!text-red-600"
-                title="Start timer"
+            {{-- Timer: pick Pomodoro or Stopwatch from a small menu --}}
+            <div
+                class="relative"
+                x-data="{
+                    open: false,
+                    menuX: 0,
+                    menuY: 0,
+                    toggle() {
+                        if (this.open) { this.open = false; return; }
+                        const r = $refs.timerTrigger.getBoundingClientRect();
+                        this.menuX = r.right + 8;   // just right of the play icon
+                        this.menuY = r.top - 4;     // align with the icon, minus the menu's padding
+                        this.open = true;
+                    },
+                }"
+                x-on:click.outside="open = false"
+                @keydown.escape.window="open = false"
             >
-                <x-heroicon-m-play class="h-5 w-5" />
-            </button>
+                <button
+                    type="button"
+                    x-ref="timerTrigger"
+                    @click="toggle()"
+                    class="{{ $railBtn }} hover:!bg-red-100 hover:!text-red-600"
+                    :class="open && '!bg-red-100 !text-red-600'"
+                    title="Start timer"
+                >
+                    <x-heroicon-m-play class="h-5 w-5" />
+                </button>
+
+                {{-- Teleported to <body> so it escapes the modal's overflow/transform
+                     clipping and can open to the right of the play icon. --}}
+                <template x-teleport="body">
+                    <div
+                        x-show="open"
+                        x-transition.opacity.duration.100ms
+                        @click.outside="open = false"
+                        class="border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
+                        :style="`position: fixed; left: ${menuX}px; top: ${menuY}px; z-index: 9999; width: 12rem; border-radius: 12px; padding: 4px; box-shadow: 0 12px 32px -8px rgba(0,0,0,0.30), 0 0 0 1px rgba(0,0,0,0.04);`"
+                    >
+                        <button
+                            type="button"
+                            @click="$dispatch('start-pomodoro', { taskId: {{ $task->id }}, mode: 'pomodoro' }); open = false"
+                            class="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                            style="border-radius: 8px;"
+                        >
+                            <x-heroicon-m-play class="h-4 w-4 flex-shrink-0 opacity-70" />
+                            Start Pomodoro
+                        </button>
+                        <button
+                            type="button"
+                            @click="$dispatch('start-pomodoro', { taskId: {{ $task->id }}, mode: 'stopwatch' }); open = false"
+                            class="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                            style="border-radius: 8px;"
+                        >
+                            <x-heroicon-m-clock class="h-4 w-4 flex-shrink-0 opacity-70" />
+                            Start Stopwatch
+                        </button>
+                    </div>
+                </template>
+            </div>
 
             {{-- Reports (task history) --}}
             <button type="button" wire:click="openTaskHistory" class="{{ $railBtn }}" title="Reports">

@@ -470,7 +470,7 @@ class TaskBoard extends Page
                 SubTask::create([
                     'task_id' => $copy->id,
                     'name' => $subTask->name,
-                    'finished' => $subTask->finished,
+                    'finished' => false,
                 ]);
             }
 

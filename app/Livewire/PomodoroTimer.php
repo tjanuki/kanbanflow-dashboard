@@ -128,8 +128,14 @@ class PomodoroTimer extends Component
     }
 
     #[On('start-pomodoro')]
-    public function start(int $taskId): void
+    public function start(int $taskId, ?string $mode = null): void
     {
+        // The task-dialog timer menu passes an explicit mode; a bare start
+        // (e.g. a task card's play control) keeps whatever mode was last used.
+        if ($mode !== null && in_array($mode, ['pomodoro', 'stopwatch'], true)) {
+            $this->mode = $mode;
+        }
+
         $this->beginEntry($taskId);
     }
 
@@ -188,36 +194,15 @@ class PomodoroTimer extends Component
     }
 
     /**
-     * Stop button. Short or naturally-finished sessions are handled silently;
-     * a session stopped early pops the "Why did you stop?" picker first.
+     * Stop button. Always stops immediately — logs the running session
+     * (discarding accidental sub-15s taps), clears the running state, and
+     * closes the dialog since it's no longer counting. No "Why did you stop?"
+     * prompt.
      */
     public function stop(): void
     {
-        $entry = $this->runningEntryId ? TimeEntry::find($this->runningEntryId) : null;
-
-        if (! $entry || $entry->ended_at !== null) {
-            $this->resetRunning();
-
-            return;
-        }
-
-        $seconds = (int) $entry->started_at->diffInSeconds(now());
-
-        // The countdown is measured from the block's anchor, which predates
-        // started_at when the timer was carried onto this task mid-block.
-        $blockSeconds = (int) ($entry->pomodoro_started_at ?? $entry->started_at)->diffInSeconds(now());
-
-        // Under 15s gets discarded; a pomodoro that already ran its full work
-        // interval finished on its own. Neither needs an explanation.
-        if ($seconds < 15 || ($this->mode === 'pomodoro' && $blockSeconds >= $this->workSeconds)) {
-            $this->finalizeRunningEntry();
-
-            return;
-        }
-
-        // Stopped early: remember when, then ask why before logging.
-        $this->pendingStopAt = now()->toIso8601String();
-        $this->showStopReasons = true;
+        $this->finalizeRunningEntry();
+        $this->showPanel = false;
     }
 
     /** A reason was chosen from the "Why did you stop?" picker. */
@@ -313,14 +298,12 @@ class PomodoroTimer extends Component
     #[On('task-opened')]
     public function setOpenTask(int $taskId, ?string $name = null): void
     {
+        // Track the open task so a running timer can offer its "Change task"
+        // link and the panel docks beside the modal. We don't surface the
+        // dialog here — it only appears while a session is counting.
         $this->openTaskId = $taskId;
         $this->openTaskName = $name;
         $this->alert = null;
-
-        // Surface the timer dialog beside the task modal whenever a task is
-        // opened. When the open task differs from the running one, the panel
-        // also surfaces its "Change task" link.
-        $this->showPanel = true;
     }
 
     /** Board tells us the detail modal closed. */
@@ -329,12 +312,6 @@ class PomodoroTimer extends Component
     {
         $this->openTaskId = null;
         $this->openTaskName = null;
-
-        // The panel was surfaced to accompany the modal — collapse it again
-        // unless a timer is still running (then it returns to the top bar).
-        if (! $this->runningEntryId) {
-            $this->showPanel = false;
-        }
     }
 
     /** Move the running timer onto the task whose modal is open. */
