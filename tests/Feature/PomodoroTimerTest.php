@@ -678,6 +678,26 @@ it('allows a manual entry dated today', function () {
     expect(TimeEntry::count())->toBe(1);
 });
 
+it('rejects a manual entry whose time is in the future on today', function () {
+    $task = pomodoroTask();
+
+    // Same calendar day as "now", so the date guard passes — but the window
+    // ends after the current time, which is time not yet spent.
+    Carbon::setTestNow('2026-06-12 14:30:00');
+
+    Livewire::test(PomodoroTimer::class)
+        ->call('openAddTime')
+        ->set('manualTaskId', $task->id)
+        ->set('manualDate', '2026-06-12')
+        ->set('manualFrom', '15:00')
+        ->set('manualTo', '15:25')
+        ->call('saveManualEntry')
+        ->assertSet('showAddTime', true)
+        ->assertSet('manualError', "The time can't be in the future.");
+
+    expect(TimeEntry::count())->toBe(0);
+});
+
 it('rejects a manual entry whose end is not after its start', function () {
     $task = pomodoroTask();
 

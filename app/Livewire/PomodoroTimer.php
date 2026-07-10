@@ -471,6 +471,15 @@ class PomodoroTimer extends Component
             return;
         }
 
+        // You can only log time you've already spent — the date guard above
+        // only rejects future *days*, so a time later than now on today's date
+        // still needs blocking. Checking $end covers $start (end is after start).
+        if ($end->isAfter(now())) {
+            $this->manualError = "The time can't be in the future.";
+
+            return;
+        }
+
         // Time is exclusive — refuse a window that overlaps an existing entry.
         // A still-running entry occupies [started_at, now], so coalesce its end.
         // When editing, the row being edited is excluded from the check.
