@@ -46,9 +46,22 @@ class AdminPanelProvider extends PanelProvider
                 PanelsRenderHook::BODY_END,
                 fn (): string => Blade::render('@livewire(\'pomodoro-timer\')'),
             )
+            // The statistics modal renders at the body (like the timer) so its
+            // fixed overlay is never clipped by the top bar; the icon that opens
+            // it lives in the top bar below.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => Blade::render('@livewire(\'pomodoro-stats\')'),
+            )
             ->renderHook(
                 PanelsRenderHook::USER_MENU_BEFORE,
                 fn (): string => Blade::render('@livewire(\'pomodoro-pill\')'),
+            )
+            // Registered after the pill so the stats icon lands between the
+            // timer and the account menu.
+            ->renderHook(
+                PanelsRenderHook::USER_MENU_BEFORE,
+                fn (): string => Blade::render('@livewire(\'pomodoro-stats-button\')'),
             )
             ->middleware([
                 EncryptCookies::class,
