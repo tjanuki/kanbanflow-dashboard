@@ -6,6 +6,7 @@ use App\Models\Column;
 use App\Models\Project;
 use App\Models\SubTask;
 use App\Models\Task;
+use Filament\Actions\Action;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\On;
@@ -38,6 +39,12 @@ class TaskBoard extends Page
 
     /** Task-history period filter (same options as the Timer log). */
     public string $historyPeriod = 'all';
+
+    /** Column-manager (cog) dialog state. */
+    public bool $showColumnManager = false;
+
+    /** "Add column" field in the column-manager dialog. */
+    public string $newColumnName = '';
 
     public array $taskForm = [
         'name' => '',
@@ -91,6 +98,105 @@ class TaskBoard extends Page
     public function getProjects()
     {
         return Project::orderBy('name')->get();
+    }
+
+    /**
+     * Header actions rendered to the right of the "Task Board" title. The cog
+     * opens the column-manager dialog (add / rename / reorder / delete columns).
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('manageColumns')
+                ->label('Edit columns')
+                ->tooltip('Edit columns')
+                ->icon('heroicon-o-cog-6-tooth')
+                ->iconButton()
+                ->color('gray')
+                ->action(fn () => $this->openColumnManager()),
+        ];
+    }
+
+    public function openColumnManager(): void
+    {
+        $this->resetValidation();
+        $this->newColumnName = '';
+        $this->showColumnManager = true;
+    }
+
+    public function closeColumnManager(): void
+    {
+        $this->showColumnManager = false;
+        $this->newColumnName = '';
+    }
+
+    /** Columns (with task counts) for the manager dialog. */
+    public function getManagedColumns()
+    {
+        return Column::withCount('tasks')->orderBy('position')->get();
+    }
+
+    /** The one system column that can't be renamed, deleted, or reordered. */
+    private function columnIsLocked(?Column $column): bool
+    {
+        return $column?->name === 'Done';
+    }
+
+    /** Append a new user column to the right end of the board. */
+    public function addColumn(): void
+    {
+        $name = trim($this->newColumnName);
+
+        if ($name === '') {
+            return;
+        }
+
+        Column::create([
+            'name' => $name,
+            'type' => 'fixed',
+            'position' => (int) Column::max('position') + 1,
+        ]);
+
+        $this->newColumnName = '';
+    }
+
+    /** Rename a column (saved on blur/enter). The fixed Done column is ignored. */
+    public function renameColumn(int $columnId, string $name): void
+    {
+        $name = trim($name);
+        $column = Column::find($columnId);
+
+        if (! $column || $this->columnIsLocked($column) || $name === '') {
+            return;
+        }
+
+        $column->update(['name' => $name]);
+    }
+
+    /**
+     * Delete a column. Blocked for the fixed Done column and for any column that
+     * still holds tasks (board_column_id is nullOnDelete, so this avoids orphaning
+     * cards) — empty the column first.
+     */
+    public function deleteColumn(int $columnId): void
+    {
+        $column = Column::withCount('tasks')->find($columnId);
+
+        if (! $column || $this->columnIsLocked($column) || $column->tasks_count > 0) {
+            return;
+        }
+
+        $column->delete();
+    }
+
+    /** Persist a drag-reorder of the columns in the manager dialog. */
+    public function reorderColumns(array $orderedIds): void
+    {
+        DB::transaction(function () use ($orderedIds) {
+            foreach ($orderedIds as $index => $id) {
+                Column::whereKey($id)->update(['position' => $index]);
+            }
+        });
     }
 
     /**

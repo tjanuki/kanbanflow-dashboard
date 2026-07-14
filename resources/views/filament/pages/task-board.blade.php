@@ -360,6 +360,113 @@
         </div>
     @endif
 
+    {{-- Column-manager dialog (opened by the cog header action) --}}
+    @if ($showColumnManager)
+        <div
+            class="fixed inset-0 flex items-center justify-center p-4"
+            style="z-index: 70; background-color: rgba(0, 0, 0, 0.45);"
+            wire:click.self="closeColumnManager"
+        >
+            <div
+                class="flex w-full max-w-md flex-col bg-white dark:bg-gray-900"
+                style="border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); padding: 1.75rem; max-height: 90vh;"
+            >
+                <div class="mb-1.5 flex shrink-0 items-center justify-between">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit columns</h2>
+                    <button type="button" wire:click="closeColumnManager" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                        <x-heroicon-m-x-mark class="h-5 w-5" />
+                    </button>
+                </div>
+
+                <p class="mb-5 shrink-0 text-xs text-gray-500 dark:text-gray-400">
+                    Drag to reorder. The <span class="font-medium">Done</span> column is fixed and can't be changed.
+                </p>
+
+                <div id="column-manager-list" class="min-h-0 flex-1 space-y-2 overflow-y-auto" style="padding-right: 4px; margin-right: -4px;">
+                    @foreach ($this->getManagedColumns() as $col)
+                        @php $locked = $col->name === 'Done'; @endphp
+                        <div
+                            data-col-id="{{ $col->id }}"
+                            @if ($locked) data-locked @endif
+                            class="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 dark:border-gray-700 dark:bg-gray-800/60"
+                        >
+                            @if ($locked)
+                                <span class="flex h-7 w-7 flex-shrink-0 items-center justify-center" style="color: #9ca3af;" title="Fixed column">
+                                    <x-heroicon-m-lock-closed class="h-4 w-4" />
+                                </span>
+                                <span class="flex-1 text-sm font-medium text-gray-500 dark:text-gray-400">{{ $col->name }}</span>
+                                <span class="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-700 dark:text-gray-400">{{ $col->tasks_count }}</span>
+                                <span
+                                    class="rounded-full px-2 py-0.5 text-xs font-medium"
+                                    style="background-color: #e5e7eb; color: #6b7280;"
+                                >Fixed</span>
+                            @else
+                                <span class="col-drag-handle flex h-7 w-7 flex-shrink-0 cursor-grab items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" title="Drag to reorder">
+                                    <x-heroicon-m-bars-3 class="h-4 w-4" />
+                                </span>
+                                <input
+                                    type="text"
+                                    value="{{ $col->name }}"
+                                    @blur="$wire.renameColumn({{ $col->id }}, $event.target.value)"
+                                    @keydown.enter.prevent="$event.target.blur()"
+                                    class="flex-1 rounded-md border-gray-300 bg-white text-sm shadow-sm dark:border-gray-600 dark:bg-gray-900"
+                                    style="padding: 6px 10px;"
+                                />
+                                <span class="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-700 dark:text-gray-400" title="Tasks in this column">{{ $col->tasks_count }}</span>
+                                @if ($col->tasks_count > 0)
+                                    <span
+                                        class="flex h-7 w-7 flex-shrink-0 cursor-not-allowed items-center justify-center"
+                                        style="color: #d1d5db;"
+                                        title="Empty this column to delete it"
+                                    >
+                                        <x-heroicon-o-trash class="h-5 w-5" />
+                                    </span>
+                                @else
+                                    <button
+                                        type="button"
+                                        @click="$dispatch('confirm-action', { method: 'deleteColumn', id: {{ $col->id }}, title: 'Delete column', message: 'Delete this column? This cannot be undone.', confirmLabel: 'Delete' })"
+                                        @mouseenter="$el.style.color = '#ef4444'"
+                                        @mouseleave="$el.style.color = '#6b7280'"
+                                        class="flex h-7 w-7 flex-shrink-0 items-center justify-center transition-colors"
+                                        style="color: #6b7280;"
+                                        title="Delete column"
+                                    >
+                                        <x-heroicon-o-trash class="h-5 w-5" />
+                                    </button>
+                                @endif
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+
+                {{-- Add a new column --}}
+                <div class="mt-6 flex shrink-0 gap-2 border-t border-gray-200 pt-6 dark:border-gray-700">
+                    <input
+                        type="text"
+                        wire:model="newColumnName"
+                        wire:keydown.enter.prevent="addColumn"
+                        placeholder="New column name…"
+                        class="flex-1 rounded-lg border-gray-300 text-sm shadow-sm dark:bg-gray-800 dark:border-gray-700"
+                        style="padding: 8px 12px;"
+                    />
+                    <button
+                        type="button"
+                        wire:click="addColumn"
+                        class="flex items-center gap-1 rounded-lg px-4 py-2 text-sm font-medium text-white"
+                        style="background-color: #22c55e;"
+                    >
+                        <x-heroicon-m-plus class="h-4 w-4" />
+                        Add
+                    </button>
+                </div>
+
+                <div class="mt-6 flex shrink-0 justify-end">
+                    <button type="button" wire:click="closeColumnManager" class="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-500">Done</button>
+                </div>
+            </div>
+        </div>
+    @endif
+
     {{-- Custom confirmation dialog (replaces the native browser confirm).
          Fire `confirm-delete-task` for the task-delete defaults, or `confirm-action`
          with { method, id, title, message, confirmLabel } to confirm any Livewire call. --}}
@@ -481,7 +588,39 @@
             });
         };
 
-        const ready = () => window.Sortable ? initSortables() : setTimeout(ready, 50);
+        // Reorder the columns inside the cog "Edit columns" dialog. The locked
+        // Done row (data-locked) can't be dragged; every row's DOM order is
+        // persisted so positions stay in sync with what the user sees.
+        const initColumnSortable = () => {
+            if (! window.Sortable || ! document.body.contains(root)) {
+                return;
+            }
+
+            const list = root.querySelector('#column-manager-list');
+            if (! list) {
+                return;
+            }
+
+            const existing = window.Sortable.get(list);
+            if (existing) {
+                existing.destroy();
+            }
+
+            window.Sortable.create(list, {
+                animation: 150,
+                handle: '.col-drag-handle',
+                draggable: '[data-col-id]',
+                filter: '[data-locked]',
+                ghostClass: 'opacity-40',
+                onEnd: () => {
+                    const ids = Array.from(list.querySelectorAll('[data-col-id]'))
+                        .map((n) => parseInt(n.dataset.colId));
+                    $wire.reorderColumns(ids);
+                },
+            });
+        };
+
+        const ready = () => window.Sortable ? (initSortables(), initColumnSortable()) : setTimeout(ready, 50);
         ready();
 
         // Snapshot card positions just before "Copy here" sends its request, so the
@@ -526,6 +665,7 @@
         // Re-bind after Livewire DOM updates (scoped to this page's columns).
         Livewire.hook('morphed', () => {
             initSortables();
+            initColumnSortable();
             runFlip();
         });
 
